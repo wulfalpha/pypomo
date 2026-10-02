@@ -21,8 +21,15 @@ units must appear in that order without repeats. Values such as `90m` are valid.
 Pre-1.0 versions do not yet support compound durations with spaces:
 use `1h30m`, not `1h 30m` (even when quoted).
 
-In a terminal, the countdown updates on one line and rings the terminal bell on
-completion. Redirected output contains only the start and completion messages.
+In a terminal, the timer name and `HH:MM:SS` countdown update on a single line:
+`pomo · 00:24:59 remaining`. Completion or cancellation replaces that line,
+then ends it with a newline so your shell prompt starts cleanly. Completion
+also rings the terminal bell.
+
+Redirected output contains separate start and completion (or cancellation)
+lines without terminal control characters. Use `--live` to force in-place
+updates through a pipe, for example `pypomo 5m --live | lolcat`. The receiving
+program must support terminal control sequences and flush output promptly.
 Ctrl+C cancels the timer with exit status 130. Invalid input exits with status 2.
 
 ## Configuration

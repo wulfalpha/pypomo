@@ -68,7 +68,13 @@ class CliTests(unittest.TestCase):
              patch('pypomo.cli.run_timer') as timer:
             for value, seconds in [('pomo', 1800), ('15', 900), ('1h30m', 5400)]:
                 self.assertEqual(main([value]), 0)
-                timer.assert_called_with(seconds, value)
+                timer.assert_called_with(seconds, value, live=False)
+
+    def test_live_flag(self):
+        with patch('pypomo.cli.load_config', return_value=Config()), \
+             patch('pypomo.cli.run_timer') as timer:
+            self.assertEqual(main(['1s', '--live']), 0)
+            timer.assert_called_once_with(1, '1s', live=True)
 
     def test_spaced_arguments(self):
         for args in (['1h', '30m'], ['1h 30m'], ['1h30m', '15s']):
@@ -100,7 +106,41 @@ class CliTests(unittest.TestCase):
             run_timer(2, 'test')
         self.assertEqual(sleep.call_count, 2)
         self.assertAlmostEqual(sleep.call_args.args[0], 0.3)
-        self.assertIn('test: done!', output.getvalue())
+        self.assertEqual(output.getvalue(), 'test · 00:00:02 remaining\ntest · complete\n')
+
+
+class DisplayTests(unittest.TestCase):
+    def test_live_completion(self):
+        for force_live, tty in ((True, False), (False, True)):
+            with self.subTest(force_live=force_live, tty=tty):
+                output = io.StringIO()
+                with patch.object(output, 'isatty', return_value=tty), \
+                     patch('pypomo.timer.time.monotonic', side_effect=[100, 100, 101, 102]), \
+                     patch('pypomo.timer.time.sleep'), contextlib.redirect_stdout(output):
+                    run_timer(2, 'pomo', live=force_live)
+                text = output.getvalue()
+                self.assertEqual(text.count('\n'), 1)
+                self.assertIn('\r\033[2Kpomo · 00:00:01 remaining', text)
+                self.assertTrue(text.endswith('\r\033[2Kpomo · complete\a\n'))
+                self.assertTrue(all(frame.startswith('pomo · ') for frame in text.split('\r\033[2K')[1:]))
+
+    def test_cancel_redraws_and_ends_line(self):
+        for live in (True, False):
+            with self.subTest(live=live):
+                output = io.StringIO()
+                with patch('pypomo.cli.load_config', return_value=Config()), \
+                     patch('pypomo.timer.time.monotonic', side_effect=[100, 100, 101.2]), \
+                     patch('pypomo.timer.time.sleep', side_effect=KeyboardInterrupt), \
+                     contextlib.redirect_stdout(output):
+                    self.assertEqual(main(['5s'] + (['--live'] if live else [])), 130)
+                text = output.getvalue()
+                self.assertTrue(text.endswith('5s · cancelled at 00:00:04 remaining\n'))
+                self.assertEqual(text.count('\n'), 1 if live else 2)
+                self.assertNotIn('complete', text)
+                self.assertNotIn('\a', text)
+                if not live:
+                    self.assertNotIn('\r', text)
+                    self.assertNotIn('\033', text)
 
 
 if __name__ == '__main__':

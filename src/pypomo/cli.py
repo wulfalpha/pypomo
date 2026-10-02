@@ -15,6 +15,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('timer', nargs='?', help='duration or configured timer name')
     parser.add_argument('--config', type=Path, help=f'JSON config path (default: {default_config_path()})')
     parser.add_argument('--list', action='store_true', help='list available named timers')
+    parser.add_argument('--live', action='store_true', help='update one line even when output is piped')
     parser.add_argument('--version', action='version', version='pypomo 0.1.0')
     args, extras = parser.parse_known_args(argv)
     if extras:
@@ -40,8 +41,7 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:
         parser.error(str(exc))
     try:
-        run_timer(seconds, args.timer)
+        run_timer(seconds, args.timer, live=args.live)
     except KeyboardInterrupt:
-        print('\nTimer cancelled.')
         return 130
     return 0
