@@ -162,3 +162,11 @@ add `--no-pretty` if styling is enabled in your config.
 PYTHONPATH=src python -m unittest discover -s tests -v
 PYTHONPATH=src python -m pypomo 1s
 ```
+
+## Continuous integration
+
+GitHub Actions runs on pushes and pull requests, with a manual run option.
+The workflow tests Python 3.12 on Linux and macOS, builds the source distribution
+and wheel, installs the wheel, runs the test suite against the installed
+package, and checks `pypomo --help`, `pypomo --list`, and a one-second timer.
+Terminal appearance still needs manual testing.
