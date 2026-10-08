@@ -1,6 +1,9 @@
 """Validated display settings and terminal styling."""
-from dataclasses import dataclass, field, fields
+import os
 import unicodedata
+from dataclasses import dataclass, field, fields
+
+from .output import safe_text
 
 COLORS = dict(zip(
     ('black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'),
@@ -55,34 +58,49 @@ def parse_pretty(data: object) -> Pretty:
                 continue
             if key == 'enabled':
                 valid = type(value) is bool
+                expected = 'a boolean'
             elif key == 'width':
                 valid = type(value) is int and 1 <= value <= 80
+                expected = 'an integer from 1 to 80'
             elif key in ('filled', 'empty'):
                 valid = (isinstance(value, str) and len(value) == 1
                          and (value == ' ' or unicodedata.category(value)[0] in 'LNPS')
                          and unicodedata.east_asian_width(value) not in ('W', 'F'))
+                expected = 'a single narrow printable character'
             else:
                 valid = isinstance(value, str) and value in COLORS
+                expected = f"one of {', '.join(COLORS)}"
             if not valid:
-                raise ValueError(f'Invalid {name}.{key}: {value!r}. Use booleans for enabled, '
-                                 'width 1–80, single narrow printable bar characters, '
-                                 'and named colors (black, red, green, yellow, blue, magenta, cyan, white, default).')
+                path = name if name == 'pretty' else f'pretty.{name}'
+                raise ValueError(f'{path}.{key} must be {expected}; got {value!r}.')
             setattr(target, key, value)
     return result
 
 
 def render(label: str, status: str, remaining: float, total: int,
-           settings: Pretty, state: str = 'remaining') -> str:
+           settings: Pretty, state: str = 'remaining', *, columns: int | None = None) -> str:
     def color(text: str, role: str) -> str:
-        if not settings.colors.enabled:
+        if not settings.colors.enabled or os.environ.get('NO_COLOR') or os.environ.get('TERM') == 'dumb':
             return text
         return f'\033[{COLORS[getattr(settings.colors, role)]}m{text}\033[0m'
 
+    separator = safe_text(' · ', ' - ')
+    label, status = safe_text(label), safe_text(status)
+    width = settings.bar.width if settings.bar.enabled else 0
+    if columns is not None:
+        # Leave the last column unused to avoid terminal auto-wrap. Preserve status
+        # before the label, and omit the bar when the text needs the space.
+        budget = max(0, columns - 1)
+        width = min(width, max(0, budget - len(label) - len(status) - 2 * len(separator) - 2))
+        if len(label) + len(separator) + len(status) > budget:
+            available = budget - len(separator) - len(status)
+            label = (label[:max(0, available - 1)] + '~') if available > 0 else ''
+            if not label:
+                return color(status[:budget], state)
     parts = [color(label, 'label')]
-    if settings.bar.enabled:
-        width = settings.bar.width
+    if width:
         filled = min(width, max(0, int(width * (1 - remaining / total))))
-        bar = settings.bar.filled * filled + settings.bar.empty * (width - filled)
+        bar = safe_text(settings.bar.filled, '#') * filled + safe_text(settings.bar.empty, '-') * (width - filled)
         parts.append(color(f'[{bar}]', 'bar'))
     parts.append(color(status, state))
-    return ' · '.join(parts)
+    return separator.join(parts)

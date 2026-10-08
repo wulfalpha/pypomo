@@ -1,5 +1,57 @@
 # pypomo: review and improvements
 
+## Implementation status (2026-10-08)
+
+The original review below is retained as a historical record. Its bug descriptions,
+line numbers, test counts, and proposed snippets describe the pre-fix code.
+`test_bug_*` tests now run as ordinary regression tests, without expected-failure
+markers. New behavior is covered in `tests/test_improvements.py` as well.
+
+### Confirmed defects addressed
+
+- Quiet broken-pipe exits (141), including listing and argparse output, with
+  shutdown-flush protection and no leaked devnull descriptor.
+- Encoding-safe timer, list, and preview output with readable separator/bar fallbacks.
+- Closed stdout runs silently; SIGTERM/SIGHUP report cancellation and retain
+  signal-specific exit codes. CLI signal handlers are restored after use.
+- Countdown updates align to deadline boundaries and avoid the duplicate first frame.
+  Ordinary oversleep no longer accumulates; scheduler stalls can still skip values.
+- Durations are bounded at 365 days, with clean errors even for very long input.
+  Leading zeros remain valid. This generous limit avoids constraining everyday use.
+- UTF-8 BOM config support and absolute-path validation for `XDG_CONFIG_HOME`.
+
+### Usability and maintenance changes
+
+- `--silent` suppresses phase/completion bells; `--preview` lists phases and total
+  duration without starting a timer. Preview also supports single timers.
+- Bars adapt to terminal width on each render; long text is truncated as needed.
+- Nonempty `NO_COLOR` disables colors. `TERM=dumb` selects plain start/end output.
+- Unknown timer names point to `--list`; negative-duration arguments receive a
+  specific positive-duration error.
+- Config rounds are limited to 1,000 as a generous typo guard. Python 3.12 remains
+  the minimum supported version.
+- Version comes from installed metadata; help/version no longer discover config
+  files. CLI pretty overrides do not mutate loaded config. Name/duration patterns
+  are shared and pretty validation errors identify the field and expected value.
+- Windows joins CI. POSIX-only imports and permission tests are guarded, and
+  encoding checks are platform-independent. Ruff runs in CI with project-local rules.
+- Process test startup and completion have effective timeouts and child cleanup.
+  Pipe tests assert exit status and empty stderr; signal tests assert exit status.
+
+### Behavioral decisions and deferred features
+
+- Retain monotonic timing and document platform-dependent laptop-suspend behavior.
+  A cross-platform suspend policy requires a separate decision and validation.
+- Keep timing and rendering changes small; defer a generator/class redesign until
+  interactive pause/resume/skip controls require it.
+- Defer notification hooks, publishing changes, Python 3.11 support, strict type
+  checking, and property-based testing. These are optional follow-ups, not bug fixes.
+- Live output still requires ANSI support. Legacy Windows console initialization
+  and macOS PTY support need platform-specific validation; Windows CI alone does
+  not validate interactive console rendering.
+
+## Original review (historical)
+
 *Review of commit `d725adc` (2026-10-03).*
 
 > **Where the tests live:** the edge-case tests behind this review are in
@@ -60,7 +112,7 @@ Every bug below was reproduced. The matching expected-failure test in `tests/tes
 [`test_bug_no_skipped_seconds_with_realistic_oversleep`]
 - **Reproduce:** use a fake clock where each `sleep(x)` takes `x + ε`, which is what really happens. I measured ε at about 0.14–0.27 ms per tick on this Linux box. Over a 25-minute timer, ε = 2 ms skips 2 displayed seconds and ε = 15 ms (typical Windows timer granularity) skips 22.
 - **Observed:** some values are never drawn. The deadline itself stays correct, because it uses the monotonic clock, so this is cosmetic.
-- **Expected:** every second is shown.
+- **Expected:** ordinary sleep overshoot does not accumulate into display drift; long scheduler stalls may still skip seconds.
 - **Where:** `timer.py:37` sleeps a fixed `min(1, remaining)`. The oversleep piles up until `ceil(remaining)` drops by 2 in a single tick. On Linux this happens about once every 1–2 hours of timing. On Windows it's roughly once a minute.
 - **Fix:** sleep until just past the next whole-second boundary instead of a fixed second:
   ```python

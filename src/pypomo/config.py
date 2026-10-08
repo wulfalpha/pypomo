@@ -5,9 +5,12 @@ import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-from .pretty import Pretty, parse_pretty
-from .pomodoro import Pomodoro, parse_pomodoro
+
 from .durations import DEFAULT_UNITS, parse_duration
+from .pomodoro import Pomodoro, parse_pomodoro
+from .pretty import Pretty, parse_pretty
+
+NAME_RE = re.compile(r'[A-Za-z][A-Za-z0-9_-]*')
 
 
 @dataclass
@@ -20,7 +23,9 @@ class Config:
 
 
 def default_config_path() -> Path:
-    directory = Path(os.environ.get('XDG_CONFIG_HOME') or Path.home() / '.config') / 'pypomo'
+    xdg = os.environ.get('XDG_CONFIG_HOME')
+    base = Path(xdg) if xdg and Path(xdg).is_absolute() else Path.home() / '.config'
+    directory = base / 'pypomo'
     toml = directory / 'config.toml'
     legacy = directory / 'config.json'
     return toml if toml.exists() or not legacy.exists() else legacy
@@ -29,7 +34,7 @@ def default_config_path() -> Path:
 def load_config(path: Path, *, required: bool = False) -> Config:
     config = Config()
     try:
-        content = path.read_text(encoding='utf-8')
+        content = path.read_text(encoding='utf-8-sig')
         if path.suffix.lower() == '.toml':
             data = tomllib.loads(content)
         elif path.suffix.lower() == '.json':
@@ -57,7 +62,7 @@ def load_config(path: Path, *, required: bool = False) -> Config:
     if not isinstance(timers, dict):
         raise ValueError('timers must map names to duration strings.')
     for name, duration in timers.items():
-        if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]*', name):
+        if not NAME_RE.fullmatch(name):
             raise ValueError(f'Invalid timer name {name!r}: start with a letter; use letters, digits, _ or -.')
         if not isinstance(duration, str):
             raise ValueError(f'Timer {name!r} must contain a duration string.')
@@ -72,7 +77,7 @@ def load_config(path: Path, *, required: bool = False) -> Config:
     if not isinstance(routines, dict):
         raise ValueError('pomodoros must map names to routine settings.')
     for name, settings in routines.items():
-        if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]*', name):
+        if not NAME_RE.fullmatch(name):
             raise ValueError(f'Invalid Pomodoro name {name!r}: start with a letter; use letters, digits, _ or -.')
         config.pomodoros[name] = parse_pomodoro(settings, config.pomo, config.default_units,
                                                f'pomodoros.{name}')

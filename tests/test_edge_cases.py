@@ -3,17 +3,12 @@
 Run with the normal suite:
     PYTHONPATH=src python -m unittest discover -s tests -v
 
-Every test asserts the behaviour a user would *expect*. Tests named ``test_bug_*`` cover
-known bugs and are marked ``@unittest.expectedFailure``. When a bug is fixed, the test
-reports an "unexpected success" (which fails the run), so remove its marker then.
+Tests named ``test_bug_*`` are regressions for the bugs recorded in improvements.md.
 Real-process tests (signals, pipes, pty) use 1-5 second timers.
 """
 import contextlib
 import io
-import json
-import math
 import os
-import pty
 import re
 import select
 import shlex
@@ -39,6 +34,8 @@ from pypomo.timer import run_timer
 SRC = Path(cli.__file__).resolve().parents[1]
 PY = sys.executable
 POSIX = os.name == 'posix'
+if POSIX:
+    import pty
 EMPTY_HOME = tempfile.TemporaryDirectory()
 
 
@@ -115,14 +112,12 @@ class DurationEdges(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_duration('5', 'mins')
 
-    @unittest.expectedFailure  # see improvements.md
     def test_bug_huge_duration_clean_error(self):
         """A 401-digit duration should give a clean usage error (exit 2), not a traceback."""
         result = run_cli('1' + '0' * 400 + 's')
         self.assertNotIn('Traceback', result.stderr)
         self.assertEqual(result.returncode, 2, result.stderr[-300:])
 
-    @unittest.expectedFailure  # see improvements.md
     def test_bug_huge_duration_precision(self):
         """Durations past ~2**53 s lose float precision: the countdown can never tick.
         Expect parse-time rejection of absurd values (e.g. > 1 year)."""
@@ -173,7 +168,7 @@ class CliEdges(unittest.TestCase):
         self.assertEqual(timer.call_args.args, (300, '5m'))
 
     def test_version_matches_package_metadata(self):
-        from importlib.metadata import version, PackageNotFoundError
+        from importlib.metadata import PackageNotFoundError, version
         try:
             installed = version('pypomo')
         except PackageNotFoundError:
@@ -224,6 +219,7 @@ class ConfigEdges(unittest.TestCase):
     def test_empty_toml_is_defaults(self):
         self.assertEqual(load_config(self.write('x.toml', '')), Config())
 
+    @unittest.skipUnless(POSIX, 'uses POSIX permission bits')
     def test_permission_denied(self):
         if os.geteuid() == 0:
             self.skipTest('root ignores permissions')
@@ -251,7 +247,6 @@ class ConfigEdges(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertNotIn('Traceback', result.stderr)
 
-    @unittest.expectedFailure  # see improvements.md
     def test_bug_utf8_bom_accepted(self):
         """Editors on Windows (Notepad, PowerShell 5 `Out-File`) write a UTF-8 BOM."""
         for name, body in (('bom.json', '{"timers": {"tea": "4m"}}'),
@@ -264,7 +259,6 @@ class ConfigEdges(unittest.TestCase):
                     self.fail(f'BOM-prefixed config rejected: {exc}')
                 self.assertEqual(timers, {'tea': 240})
 
-    @unittest.expectedFailure  # see improvements.md
     def test_bug_relative_xdg_config_home_ignored(self):
         """XDG Base Directory spec: relative XDG_CONFIG_HOME must be ignored."""
         with patch.dict(os.environ, {'XDG_CONFIG_HOME': 'relative/dir'}):
@@ -281,11 +275,9 @@ class ConfigEdges(unittest.TestCase):
         self.assertEqual(cfg.pomodoros['pomo'].rounds, 2)
         self.assertNotIn('pomo', cfg.timers)
 
-    def test_absurd_rounds_accepted(self):
-        # Observation: TOML spec says ints beyond 64-bit must error; tomllib accepts them and
-        # pypomo has no upper bound on rounds. Not counted as a bug.
-        cfg = load_config(self.write('r.toml', '[pomo]\nrounds = 99999999999999999999\n'))
-        self.assertEqual(cfg.pomo.rounds, 99999999999999999999)
+    def test_absurd_rounds_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'rounds must be an integer from 1 to 1000'):
+            load_config(self.write('r.toml', '[pomo]\nrounds = 99999999999999999999\n'))
 
     def test_default_units_applies_regardless_of_key_order(self):
         cfg = load_config(self.write('x.json', '{"timers": {"tea": "4"}, "default_units": "m"}'))
@@ -313,7 +305,6 @@ class TimerLogicEdges(unittest.TestCase):
         text, _ = run_fake(120, live=True)
         self.assertEqual(sorted(set(shown_seconds(text)), reverse=True), list(range(120, 0, -1)))
 
-    @unittest.expectedFailure  # see improvements.md
     def test_bug_no_skipped_seconds_with_realistic_oversleep(self):
         """time.sleep(1) routinely overshoots (~0.1-2 ms Linux, ~1-16 ms Windows). Because the
         loop sleeps a fixed 1 s instead of to the next whole-second boundary, the error
@@ -381,16 +372,34 @@ def spawn(*args, env_extra=None):
     proc = subprocess.Popen([PY, '-m', 'pypomo', *args], stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, encoding='utf-8', errors='replace', env=cli_env(env_extra),
                             preexec_fn=_default_sigint)
-    proc.first_line = proc.stdout.readline()
+    data = b''
+    deadline = time.monotonic() + 5
+    try:
+        while b'\n' not in data:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not select.select([proc.stdout], [], [], remaining)[0]:
+                raise subprocess.TimeoutExpired(proc.args, 5)
+            chunk = os.read(proc.stdout.fileno(), 4096)
+            if not chunk:
+                raise RuntimeError('Timer exited before its first status line')
+            data += chunk
+    except BaseException:
+        proc.kill()
+        proc.communicate()
+        raise
+    proc.first_line = data.decode('utf-8', 'replace')
     return proc
 
 
 def finish(proc, timeout=20):
     """Return everything the process printed, after it exits."""
-    rest = proc.stdout.read()
-    proc.wait(timeout=timeout)
-    proc.stdout.close()
-    return proc.first_line + rest
+    try:
+        rest, _ = proc.communicate(timeout=timeout)
+        return proc.first_line + rest
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.communicate()
 
 
 @unittest.skipUnless(POSIX, 'uses POSIX signals, bash and head')
@@ -410,7 +419,6 @@ class ProcessEdges(unittest.TestCase):
         self.assertIn('cancelled at', out)
         self.assertNotIn('Traceback', out)
 
-    @unittest.expectedFailure  # see improvements.md
     def test_bug_sigterm_reports_cancellation(self):
         """`timeout`, `kill`, systemd, tmux kill-pane and closing a terminal send SIGTERM/SIGHUP.
         pypomo dies without writing a cancellation line (and leaves a live line unterminated)."""
@@ -420,6 +428,8 @@ class ProcessEdges(unittest.TestCase):
                 proc.send_signal(sig)
                 out = finish(proc)
                 self.assertIn('cancelled at', out)
+                self.assertEqual(proc.returncode, 128 + sig, out)
+                self.assertNotIn('Traceback', out)
 
     def test_suspend_resume_counts_stopped_time(self):
         # Observation (not a bug per README): Ctrl-Z does not pause; stopped time still counts.
@@ -434,31 +444,20 @@ class ProcessEdges(unittest.TestCase):
 
     def _broken_pipe(self, *args):
         cmd = f'{shlex.quote(PY)} -m pypomo {" ".join(args)} | head -c 10 >/dev/null'
-        return subprocess.run(['bash', '-c', cmd], capture_output=True, encoding='utf-8', errors='replace',
+        return subprocess.run(['bash', '-o', 'pipefail', '-c', cmd], capture_output=True, encoding='utf-8', errors='replace',
                               env=cli_env(), timeout=30)
 
-    @unittest.expectedFailure  # see improvements.md
     def test_bug_broken_pipe_no_traceback(self):
         for args in (('2s',), ('3s', '--live')):
             with self.subTest(args=args):
                 result = self._broken_pipe(*args)
-                self.assertNotIn('Traceback', result.stderr, result.stderr[-400:])
+                self.assertEqual(result.returncode, 141, result.stderr)
+                self.assertEqual(result.stderr, '')
 
-    @unittest.expectedFailure  # see improvements.md
     def test_bug_closed_stdout_no_traceback(self):
         result = subprocess.run(['bash', '-c', f'{shlex.quote(PY)} -m pypomo 1s >&-'],
                                 capture_output=True, encoding='utf-8', errors='replace', env=cli_env(), timeout=30)
         self.assertNotIn('Traceback', result.stderr, result.stderr[-300:])
-
-    @unittest.expectedFailure  # see improvements.md
-    def test_bug_non_utf8_stdout(self):
-        """Plain output contains U+00B7 '·'; pretty bar uses U+2588/U+2591. On an ASCII or
-        legacy code-page stdout (e.g. Windows redirect, PYTHONIOENCODING, some CI) it crashes."""
-        for enc, args in (('ascii', ('1s',)), ('cp1252', ('1s', '--live', '--pretty'))):
-            with self.subTest(enc=enc, args=args):
-                result = run_cli(*args, env_extra={'PYTHONIOENCODING': enc, 'PYTHONUTF8': '0'})
-                self.assertNotIn('Traceback', result.stderr, result.stderr[-300:])
-                self.assertEqual(result.returncode, 0)
 
     def test_concurrent_instances_independent(self):
         procs = [spawn('1s') for _ in range(5)]
@@ -471,6 +470,18 @@ class ProcessEdges(unittest.TestCase):
         # Empty XDG_CONFIG_HOME falls back to $HOME/.config (an empty temp dir here).
         result = run_cli('--list', stdin=subprocess.DEVNULL, env_extra={'XDG_CONFIG_HOME': ''})
         self.assertEqual(result.returncode, 0)
+
+
+class EncodingEdges(unittest.TestCase):
+    def test_bug_non_utf8_stdout(self):
+        """Plain output contains U+00B7 '·'; pretty bar uses U+2588/U+2591. On an ASCII or
+        legacy code-page stdout (e.g. Windows redirect, PYTHONIOENCODING, some CI) it crashes."""
+        for enc, args in (('ascii', ('1s',)), ('cp1252', ('1s', '--live', '--pretty')),
+                          ('ascii', ('--list',)), ('ascii', ('pomo', '--preview'))):
+            with self.subTest(enc=enc, args=args):
+                result = run_cli(*args, env_extra={'PYTHONIOENCODING': enc, 'PYTHONUTF8': '0'})
+                self.assertNotIn('Traceback', result.stderr, result.stderr[-300:])
+                self.assertEqual(result.returncode, 0)
 
 
 @unittest.skipUnless(sys.platform.startswith('linux'),

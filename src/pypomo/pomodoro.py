@@ -1,10 +1,12 @@
 """Finite Pomodoro routines and their configuration."""
-from dataclasses import dataclass, replace
 from collections.abc import Iterator
+from dataclasses import dataclass, replace
 
 from .durations import parse_duration
 from .pretty import Pretty, section
 from .timer import run_timer
+
+MAX_ROUNDS = 1000
 
 
 @dataclass
@@ -28,8 +30,8 @@ def parse_pomodoro(data: object, base: Pomodoro, units: str | None, name: str) -
     result = replace(base)
     for key, value in values.items():
         if key == 'rounds':
-            if type(value) is not int or value < 1:
-                raise ValueError(f'{name}.rounds must be a positive integer.')
+            if type(value) is not int or not 1 <= value <= MAX_ROUNDS:
+                raise ValueError(f'{name}.rounds must be an integer from 1 to {MAX_ROUNDS}.')
         else:
             if not isinstance(value, str):
                 raise ValueError(f'{name}.{key} must be a duration string.')
@@ -42,9 +44,9 @@ def parse_pomodoro(data: object, base: Pomodoro, units: str | None, name: str) -
 
 
 def run_pomodoro(routine: Pomodoro, label: str, *, live: bool = False,
-                  pretty: Pretty | None = None) -> None:
+                  pretty: Pretty | None = None, silent: bool = False) -> None:
     for phase, seconds, round_number in routine.phases():
         final = phase == 'long break'
         run_timer(seconds, f'{label} · {phase} {round_number}/{routine.rounds}',
-                  live=live, pretty=pretty, finish_line=final,
+                  live=live, pretty=pretty, silent=silent, finish_line=final,
                   completion='routine complete' if final else 'complete')

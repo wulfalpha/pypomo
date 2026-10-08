@@ -18,6 +18,7 @@ pypomo --list
 
 Durations use positive whole-number totals with `h`, `m`, and `s`. Compound
 units must appear in that order without repeats. Values such as `90m` are valid.
+Each duration is limited to 365 days (`8760h`), including durations in config files.
 Pre-1.0 versions do not yet support compound durations with spaces:
 use `1h30m`, not `1h 30m` (even when quoted).
 
@@ -25,17 +26,31 @@ In a terminal, the timer name and `HH:MM:SS` countdown update on a single line:
 `pomo · 00:24:59 remaining`. Completion or cancellation replaces that line,
 then ends it with a newline so your shell prompt starts cleanly. Completion
 also rings the terminal bell.
+Use `--silent` to suppress the bell while keeping the countdown visible.
 
 Redirected output contains separate start and completion (or cancellation)
 lines without terminal control characters. Use `--live` to force in-place
 updates through a pipe, for example `pypomo 5m --live | lolcat`. The receiving
 program must support terminal control sequences and flush output promptly.
 Ctrl+C cancels the timer with exit status 130. Invalid input exits with status 2.
+On POSIX systems, SIGTERM and SIGHUP also cancel the timer, with exit statuses
+143 and 129 respectively. A broken output pipe exits quietly with status 141.
+If stdout is unavailable, the timer runs silently to its deadline.
+
+The timer uses a monotonic clock, so changing the system clock does not change
+the countdown. Ctrl+Z does not pause it: stopped process time still counts.
+Laptop-suspend behavior depends on the platform's monotonic clock; pypomo does
+not currently normalize it or guarantee that suspended time counts. Ordinary
+sleep overshoot does not accumulate into display drift, though long scheduling
+stalls can still skip displayed seconds.
 
 ## Configuration
 
 Create `~/.config/pypomo/config.toml` (or `$XDG_CONFIG_HOME/pypomo/config.toml`
-when set). TOML supports comments and sections:
+when set).
+Relative `XDG_CONFIG_HOME` values are ignored. On Windows the default remains
+`%USERPROFILE%\.config\pypomo`. UTF-8 files with or without a BOM are accepted.
+TOML supports comments and sections:
 
 ```toml
 default_units = "minutes"
@@ -111,6 +126,7 @@ pypomo --list
 
 `rounds` is a positive integer counting focus sessions. A one-round routine
 has one focus session followed by a long break, with no short break.
+The maximum is 1,000 focus rounds per routine.
 Durations must be positive strings, using the same duration syntax and
 `default_units` as ordinary timers. Omitted default settings use built-in
 values; custom routines inherit omitted settings from the configured `[pomo]`.
@@ -122,6 +138,19 @@ The display includes the routine name, phase and round, such as
 the progress bar measures the current phase and resets at each transition.
 The terminal bell rings when each phase ends. Redirected output records the
 start and completion of each phase on separate lines.
+
+Preview a routine's phases and total duration without starting it:
+
+```bash
+pypomo pomo --preview
+pypomo sprint.pomo --preview
+pypomo 1h30m --preview
+```
+
+The total includes all focus sessions and breaks, including the final long
+break. The built-in routine totals `02:10:00`. `--preview` also supports named
+timers and explicit durations. It cannot be combined with `--list`.
+`--silent` suppresses bells for every phase of a running routine.
 
 For compatibility, a legacy `[timers] pomo = "25m"` setting (or its JSON
 equivalent) supplies the default routine's focus duration. An explicit
@@ -147,7 +176,9 @@ text. Each styled segment resets its color so it does not affect the shell promp
 Bar width is 1–80 characters. Filled and empty glyphs must each be a single
 narrow printable character (for example `#` and `-`, or `█` and `░`); spaces
 are allowed, but emoji, wide characters, combining marks and control characters
-are rejected. Choose a width that fits your terminal. Available colors are
+are rejected. The bar shrinks or disappears when the terminal is narrow;
+long labels are truncated to preserve the status, and extremely narrow displays
+truncate the status as well. Available colors are
 `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`, and `default`
 (the terminal's default foreground). Actual shades follow your terminal palette.
 
@@ -156,17 +187,26 @@ Redirected output remains plain without `--live`, even with `--pretty`.
 For coloring with an external program, use `pypomo 5m --live | lolcat`;
 add `--no-pretty` if styling is enabled in your config.
 
+A nonempty `NO_COLOR` disables colors while preserving the progress bar.
+`TERM=dumb` uses plain start/end lines, including when `--live` is supplied.
+Output uses readable ASCII separators and bar glyphs when the stream's encoding
+cannot represent the configured characters. Other unencodable text is escaped.
+Live rendering requires a terminal that understands ANSI control sequences.
+
 ## Development
 
 ```bash
 PYTHONPATH=src python -m unittest discover -s tests -v
 PYTHONPATH=src python -m pypomo 1s
+ruff check src tests
 ```
 
 ## Continuous integration
 
 GitHub Actions runs on pushes and pull requests, with a manual run option.
-The workflow tests Python 3.12 on Linux and macOS, builds the source distribution
+The workflow lints the code and tests Python 3.12 on Linux, macOS, and Windows, builds the source distribution
 and wheel, installs the wheel, runs the test suite against the installed
 package, and checks `pypomo --help`, `pypomo --list`, and a one-second timer.
-Terminal appearance still needs manual testing.
+Linux PTY tests cover live output and Ctrl+C; POSIX signal tests run on Linux and
+macOS. Encoding tests run on every platform. Terminal appearance and interactive
+Windows console behavior still benefit from manual testing.

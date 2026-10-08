@@ -9,8 +9,8 @@ from unittest.mock import patch
 from pypomo.cli import main
 from pypomo.config import Config, load_config
 from pypomo.durations import parse_duration
-from pypomo.timer import run_timer
 from pypomo.pretty import Pretty
+from pypomo.timer import run_timer
 
 
 class DurationTests(unittest.TestCase):
@@ -70,13 +70,13 @@ class CliTests(unittest.TestCase):
              patch('pypomo.cli.run_timer') as timer:
             for value, seconds in [('15', 900), ('1h30m', 5400)]:
                 self.assertEqual(main([value]), 0)
-                timer.assert_called_with(seconds, value, live=False, pretty=Pretty())
+                timer.assert_called_with(seconds, value, live=False, pretty=Pretty(), silent=False)
 
     def test_live_flag(self):
         with patch('pypomo.cli.load_config', return_value=Config()), \
              patch('pypomo.cli.run_timer') as timer:
             self.assertEqual(main(['1s', '--live']), 0)
-            timer.assert_called_once_with(1, '1s', live=True, pretty=Pretty())
+            timer.assert_called_once_with(1, '1s', live=True, pretty=Pretty(), silent=False)
 
     def test_spaced_arguments(self):
         for args in (['1h', '30m'], ['1h 30m'], ['1h30m', '15s']):

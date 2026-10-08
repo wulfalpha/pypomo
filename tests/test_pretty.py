@@ -13,6 +13,9 @@ from pypomo.timer import run_timer
 
 
 class PrettyTests(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(patch.dict(os.environ, {'NO_COLOR': '', 'TERM': 'xterm', 'COLUMNS': '80'}))
+
     def test_validation(self):
         for data in (None, {'enabled': 1}, {'bar': []}, {'typo': True},
                      {'colors': {'label': 'orange'}}, {'bar': {'width': True}},
