@@ -7,10 +7,19 @@ from pathlib import Path
 
 from .config import NAME_RE, default_config_path, load_config
 from .durations import DURATION_RE, SPACED_MESSAGE, parse_duration
-from .output import silence_broken_pipe, write
+from .output import flush, silence_broken_pipe, write
 from .pomodoro import run_pomodoro
 from .signals import Terminated, cancellation_handlers
 from .timer import format_duration, run_timer
+
+
+class ArgumentParser(argparse.ArgumentParser):
+    def _print_message(self, message, file=None):
+        if file is sys.stdout:
+            if message:
+                write(message, end='')
+        else:
+            super()._print_message(message, file)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -19,10 +28,8 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 return _main(argv)
             finally:
-                # argparse writes help/version without flushing. Keep shutdown
-                # failures inside the same broken-pipe boundary as timer output.
-                if sys.stdout is not None:
-                    sys.stdout.flush()
+                # Keep buffered output failures inside the broken-pipe boundary.
+                flush()
     except BrokenPipeError:
         silence_broken_pipe()
         return 141
@@ -33,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
+    parser = ArgumentParser(
         description='Start a duration or named timer (e.g. 15m, 1h30m, pomo).',
         epilog=SPACED_MESSAGE,
     )

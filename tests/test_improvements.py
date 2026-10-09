@@ -105,12 +105,12 @@ class CommandTests(unittest.TestCase):
             self.assertEqual(main(['--list']), 141)
 
     def test_closed_pipe_on_short_commands_has_no_shutdown_error(self):
-        for flag in ('--list', '--help', '--version'):
-            with self.subTest(flag=flag):
+        for args in (['--list'], ['--help'], ['--version'], ['1s'], ['pomo', '--preview']):
+            with self.subTest(args=args):
                 reader, writer = os.pipe()
                 os.close(reader)
                 try:
-                    result = subprocess.run([PY, '-m', 'pypomo', flag], stdout=writer,
+                    result = subprocess.run([PY, '-m', 'pypomo', *args], stdout=writer,
                                             stderr=subprocess.PIPE, env=cli_env(), timeout=5)
                 finally:
                     os.close(writer)

@@ -11,6 +11,10 @@ markers. New behavior is covered in `tests/test_improvements.py` as well.
 
 - Quiet broken-pipe exits (141), including listing and argparse output, with
   shutdown-flush protection and no leaked devnull descriptor.
+  Follow-up: Windows CI exposed CRT `OSError(EINVAL)` on closed pipes. Stdout
+  writes and flushes now normalize that Windows-only pipe error; regular-file
+  errors and failures elsewhere in the CLI still propagate. Regression tests
+  simulate both error paths on every platform, alongside real closed-pipe tests.
 - Encoding-safe timer, list, and preview output with readable separator/bar fallbacks.
 - Closed stdout runs silently; SIGTERM/SIGHUP report cancellation and retain
   signal-specific exit codes. CLI signal handlers are restored after use.
