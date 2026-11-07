@@ -12,6 +12,7 @@ pypomo 15m
 pypomo 30s
 pypomo 2h
 pypomo 1h30m15s
+pypomo 1h 30m
 pypomo pomo
 pypomo --list
 ```
@@ -19,8 +20,10 @@ pypomo --list
 Durations use positive whole-number totals with `h`, `m`, and `s`. Compound
 units must appear in that order without repeats. Values such as `90m` are valid.
 Each duration is limited to 365 days (`8760h`), including durations in config files.
-Pre-1.0 versions do not yet support compound durations with spaces:
-use `1h30m`, not `1h 30m` (even when quoted).
+Spaces may separate units, with or without quotes: `pypomo 1h 30m` and
+`pypomo "1h 30m"` both equal `1h30m`, and config durations such as
+`"1h 30m"` work too. Spaces are allowed only between units (`5 m` is rejected),
+and tabs or other whitespace are not accepted.
 
 In a terminal, the timer name and `HH:MM:SS` countdown update on a single line:
 `pomo · 00:24:59 remaining`. Completion or cancellation replaces that line,
@@ -37,8 +40,18 @@ On POSIX systems, SIGTERM and SIGHUP also cancel the timer, with exit statuses
 143 and 129 respectively. A broken output pipe exits quietly with status 141.
 If stdout is unavailable, the timer runs silently to its deadline.
 
+## Pausing
+
+While a timer runs in a terminal, press `p` (or Space) to pause and `p` again
+to resume; the paused time is added back to the timer. Press `q` to cancel,
+exactly like Ctrl+C. Keys work whenever standard input is the terminal and
+pypomo is the foreground job, including with redirected output, where the log
+gains `paused at …` and `resumed at …` lines. Keys are read immediately and are
+not echoed; the terminal's normal input mode is restored on exit.
+
 The timer uses a monotonic clock, so changing the system clock does not change
 the countdown. Ctrl+Z does not pause it: stopped process time still counts.
+Use `p` to pause.
 Laptop-suspend behavior depends on the platform's monotonic clock; pypomo does
 not currently normalize it or guarantee that suspended time counts. Ordinary
 sleep overshoot does not accumulate into display drift, though long scheduling
@@ -76,6 +89,7 @@ remaining = "white"
 bar = "green"
 complete = "green"
 cancelled = "yellow"
+paused = "yellow"   # paused and ready-to-start lines
 ```
 
 Existing `config.json` files remain supported with the same settings as nested
@@ -99,8 +113,17 @@ use `pypomo 25m` or define a timer named `focus`.
 
 `pypomo pomo` runs four 25-minute focus sessions, with 5-minute short breaks
 between them and a 15-minute long break after the last focus session. Phases
-advance automatically; the routine finishes after the long break rather than
-repeating indefinitely. Ctrl+C cancels the entire routine.
+advance automatically by default; the routine finishes after the long break
+rather than repeating indefinitely. Ctrl+C or `q` cancels the entire routine.
+
+To wait for you between phases, set `auto_start = false` or pass
+`--no-auto-start` (`--auto-start` overrides a config that disables it). After
+each phase ends, the display shows `sprint.pomo · short break 1/3 · ready ·
+press Enter to start`, and the next phase begins when you press Enter. Waiting
+time does not count against the next phase; `q` or Ctrl+C cancels instead.
+Without a terminal keyboard, pypomo reads a line from standard input instead,
+and starts immediately if standard input is closed or exhausted, so unattended
+runs never block. The flags have no effect on single timers.
 
 Customize the default or add named routines in your config:
 
@@ -110,6 +133,7 @@ focus = "25m"
 short_break = "5m"
 long_break = "15m"
 rounds = 4
+auto_start = true   # false: wait for Enter before each phase after the first
 
 [pomodoros.sprint]
 focus = "15m"
@@ -124,7 +148,7 @@ pypomo sprint.pomo --pretty
 pypomo --list
 ```
 
-`rounds` is a positive integer counting focus sessions. A one-round routine
+`rounds` is a positive integer counting focus sessions. `auto_start` is a boolean. A one-round routine
 has one focus session followed by a long break, with no short break.
 The maximum is 1,000 focus rounds per routine.
 Durations must be positive strings, using the same duration syntax and
@@ -193,6 +217,54 @@ Output uses readable ASCII separators and bar glyphs when the stream's encoding
 cannot represent the configured characters. Other unencodable text is escaped.
 Live rendering requires a terminal that understands ANSI control sequences.
 
+## Hooks
+
+pypomo does the timing and leaves notifications, sounds, and logging to other
+programs. A hook is a command run when a timer event happens:
+
+```toml
+[hooks]
+end = ["notify-send", "pypomo", "Time is up"]
+pause = "playerctl pause"
+resume = "playerctl play"
+any = 'echo "$(date -Is) $PYPOMO_EVENT $PYPOMO_LABEL" >> ~/.local/state/pomodoro.log'
+```
+
+Events are `start`, `end`, `pause`, `resume`, and `cancel`; an `any` hook runs
+for every event, after the event's own hook. Each phase of a routine has its
+own `start` and `end`. Waiting for Enter between phases is not an event.
+A list runs the program directly; a string runs through the system shell
+(`sh` on POSIX, `cmd` on Windows), so shell variables, pipes, and redirection work.
+Add hooks for a single run with `--hook CMD` (repeatable, shell syntax,
+equivalent to an extra `any` hook), or ignore configured hooks with `--no-hooks`.
+
+| Variable | Value |
+| --- | --- |
+| `PYPOMO_EVENT` | `start`, `end`, `pause`, `resume`, or `cancel` |
+| `PYPOMO_TIMER` | the timer as given: `25m`, `tea`, `sprint.pomo` |
+| `PYPOMO_LABEL` | the displayed label: `sprint.pomo · focus 1/3` |
+| `PYPOMO_PHASE` | `timer`, `focus`, `short_break`, or `long_break` |
+| `PYPOMO_ROUND`, `PYPOMO_ROUNDS` | round and total rounds; empty for single timers |
+| `PYPOMO_DURATION` | the timer or phase length in seconds |
+| `PYPOMO_REMAINING` | whole seconds left (`0` at `end`) |
+| `PYPOMO_LAST` | `1` for a single timer or a routine's final phase, else `0` |
+
+Hooks never affect the timer. pypomo starts them in the background without
+waiting, so a slow hook does not delay the countdown, and hooks for consecutive
+events may overlap. A hook's exit status is ignored. A command that cannot be
+started produces one warning on stderr and the timer continues. Hooks receive no
+standard input and their standard output is discarded, keeping pypomo's output
+clean for pipes; standard error stays connected so failures are visible. Each
+hook runs in its own session or process group, so Ctrl+C or closing the
+terminal does not interrupt a hook that is already running.
+`--preview` and `--list` never run hooks.
+
+Example: a desktop notification only when a whole routine finishes:
+
+```bash
+pypomo pomo --hook '[ "$PYPOMO_EVENT" = end ] && [ "$PYPOMO_LAST" = 1 ] && notify-send "Routine done"'
+```
+
 ## Development
 
 ```bash
@@ -207,6 +279,6 @@ GitHub Actions runs on pushes and pull requests, with a manual run option.
 The workflow lints the code and tests Python 3.12 on Linux, macOS, and Windows, builds the source distribution
 and wheel, installs the wheel, runs the test suite against the installed
 package, and checks `pypomo --help`, `pypomo --list`, and a one-second timer.
-Linux PTY tests cover live output and Ctrl+C; POSIX signal tests run on Linux and
+Linux PTY tests cover live output, Ctrl+C, pause/resume keys, and waiting between phases; POSIX signal tests run on Linux and
 macOS. Encoding tests run on every platform. Terminal appearance and interactive
 Windows console behavior still benefit from manual testing.

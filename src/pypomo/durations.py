@@ -4,14 +4,16 @@ import re
 UNITS = {'s': 1, 'm': 60, 'h': 3600}
 MAX_SECONDS = 365 * 86400
 DURATION_RE = re.compile(r'(?:[0-9]+[hms])+')
+SPACED_RE = re.compile(r'(?:[0-9]+[hms])+(?: +(?:[0-9]+[hms])+)+')
 DEFAULT_UNITS = {'s': 's', 'seconds': 's', 'm': 'm', 'minutes': 'm', 'h': 'h', 'hours': 'h'}
-SPACED_MESSAGE = ('Pre-1.0 versions do not yet support compound durations with spaces. '
-                  'Use 1h30m instead of 1h 30m.')
+SPACED_MESSAGE = 'Spaces are allowed only between units, as in 1h 30m.'
 
 
 def parse_duration(value: str, default_units: str | None = None) -> int:
     if any(char.isspace() for char in value):
-        raise ValueError(SPACED_MESSAGE)
+        if not SPACED_RE.fullmatch(value):
+            raise ValueError(SPACED_MESSAGE)
+        value = value.replace(' ', '')
     if re.fullmatch(r'[0-9]+', value):
         if default_units is None:
             raise ValueError('Missing units: use 15s, 15m, or 15h, or configure default_units.')

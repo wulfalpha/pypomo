@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .durations import DEFAULT_UNITS, parse_duration
+from .hooks import Command, parse_hooks
 from .pomodoro import Pomodoro, parse_pomodoro
 from .pretty import Pretty, parse_pretty
 
@@ -20,6 +21,7 @@ class Config:
     pretty: Pretty = field(default_factory=Pretty)
     pomo: Pomodoro = field(default_factory=Pomodoro)
     pomodoros: dict[str, Pomodoro] = field(default_factory=dict)
+    hooks: dict[str, list[Command]] = field(default_factory=dict)
 
 
 def default_config_path() -> Path:
@@ -49,7 +51,7 @@ def load_config(path: Path, *, required: bool = False) -> Config:
         raise ValueError(f'Cannot read config {path}: {exc}') from exc
     if not isinstance(data, dict):
         raise ValueError('Config must be an object/table.')
-    unknown = data.keys() - {'default_units', 'timers', 'pretty', 'pomo', 'pomodoros'}
+    unknown = data.keys() - {'default_units', 'timers', 'pretty', 'pomo', 'pomodoros', 'hooks'}
     if unknown:
         raise ValueError(f"Unknown config settings: {', '.join(sorted(unknown))}")
     if 'default_units' in data:
@@ -58,6 +60,7 @@ def load_config(path: Path, *, required: bool = False) -> Config:
             raise ValueError('default_units must be seconds, minutes, hours, s, m, or h.')
         config.default_units = unit
     config.pretty = parse_pretty(data.get('pretty', {}))
+    config.hooks = parse_hooks(data.get('hooks', {}))
     timers = data.get('timers', {})
     if not isinstance(timers, dict):
         raise ValueError('timers must map names to duration strings.')

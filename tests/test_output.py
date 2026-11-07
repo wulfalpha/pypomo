@@ -7,9 +7,13 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from support import disable_keyboard
+
 from pypomo.cli import main
 from pypomo.config import Config
 from pypomo.output import flush, write
+
+setUpModule = disable_keyboard
 
 
 class WindowsPipeTests(unittest.TestCase):

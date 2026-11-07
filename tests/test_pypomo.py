@@ -6,11 +6,15 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from support import disable_keyboard
+
 from pypomo.cli import main
 from pypomo.config import Config, load_config
 from pypomo.durations import parse_duration
 from pypomo.pretty import Pretty
 from pypomo.timer import run_timer
+
+setUpModule = disable_keyboard
 
 
 class DurationTests(unittest.TestCase):
@@ -29,8 +33,17 @@ class DurationTests(unittest.TestCase):
                 parse_duration(value)
 
     def test_spaced_duration(self):
-        with self.assertRaisesRegex(ValueError, 'Pre-1.0.*spaces'):
-            parse_duration('1h 30m')
+        for value, expected in [('1h 30m', 5400), ('1h  30m 15s', 5415), ('1h30m 15s', 5415),
+                                ('2h 0m', 7200)]:
+            with self.subTest(value=value):
+                self.assertEqual(parse_duration(value), expected)
+        self.assertEqual(parse_duration('1h 30m', 'm'), 5400)
+        for value in ('5 m', ' 1h 30m', '1h 30m ', '1h\t30m', '1h\n30m', '1h\u00a030m', '1h 30', '30m 1h',
+                      '1h 1h'):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                parse_duration(value, 'm')
+        with self.assertRaisesRegex(ValueError, 'only between units'):
+            parse_duration('5 m')
 
 
 class ConfigTests(unittest.TestCase):
@@ -70,22 +83,44 @@ class CliTests(unittest.TestCase):
              patch('pypomo.cli.run_timer') as timer:
             for value, seconds in [('15', 900), ('1h30m', 5400)]:
                 self.assertEqual(main([value]), 0)
-                timer.assert_called_with(seconds, value, live=False, pretty=Pretty(), silent=False)
+                timer.assert_called_with(seconds, value, live=False, pretty=Pretty(), silent=False, keys=None, on_event=None)
 
     def test_live_flag(self):
         with patch('pypomo.cli.load_config', return_value=Config()), \
              patch('pypomo.cli.run_timer') as timer:
             self.assertEqual(main(['1s', '--live']), 0)
-            timer.assert_called_once_with(1, '1s', live=True, pretty=Pretty(), silent=False)
+            timer.assert_called_once_with(1, '1s', live=True, pretty=Pretty(), silent=False, keys=None, on_event=None)
 
     def test_spaced_arguments(self):
-        for args in (['1h', '30m'], ['1h 30m'], ['1h30m', '15s']):
+        with patch('pypomo.cli.load_config', return_value=Config()), \
+             patch('pypomo.cli.run_timer') as timer:
+            for args, seconds, label in ((['1h', '30m'], 5400, '1h 30m'), (['1h 30m'], 5400, '1h 30m'),
+                                         (['1h30m', '15s'], 5415, '1h30m 15s'),
+                                         (['1h', '--live', '5s'], 3605, '1h 5s')):
+                with self.subTest(args=args):
+                    self.assertEqual(main(args), 0)
+                    self.assertEqual(timer.call_args.args, (seconds, label))
+        for args, message in ((['25m', '5m'], 'once each, in order'), (['1h', 'tea'], 'unrecognized'),
+                              (['tea', '5m'], 'unrecognized'), (['1h', '30'], 'unrecognized'),
+                              (['1h', '-5m'], 'greater than zero')):
             error = io.StringIO()
-            with patch('pypomo.cli.load_config', return_value=Config()), \
+            with self.subTest(args=args), patch('pypomo.cli.load_config', return_value=Config()), \
                  contextlib.redirect_stderr(error), self.assertRaises(SystemExit) as raised:
                 main(args)
             self.assertEqual(raised.exception.code, 2)
-            self.assertIn('Pre-1.0 versions do not yet support', error.getvalue())
+            self.assertIn(message, error.getvalue())
+
+    def test_spaced_preview_and_config(self):
+        output = io.StringIO()
+        with patch('pypomo.cli.load_config', return_value=Config()), contextlib.redirect_stdout(output):
+            self.assertEqual(main(['1h', '30m', '--preview']), 0)
+        self.assertEqual(output.getvalue(), '1h 30m: 01:30:00\nTotal: 01:30:00\n')
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'config.toml'
+            path.write_text('[timers]\ndeep = "1h 30m"\n[pomo]\nlong_break = "20m 30s"\n')
+            config = load_config(path)
+        self.assertEqual(config.timers['deep'], 5400)
+        self.assertEqual(config.pomo.long_break, 1230)
 
     def test_cancel(self):
         with patch('pypomo.cli.load_config', return_value=Config()), \

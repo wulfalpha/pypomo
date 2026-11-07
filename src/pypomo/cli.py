@@ -1,12 +1,15 @@
 """argparse entry point."""
 import argparse
 import sys
+import textwrap
 from dataclasses import replace
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from .config import NAME_RE, default_config_path, load_config
-from .durations import DURATION_RE, SPACED_MESSAGE, parse_duration
+from .durations import DURATION_RE, parse_duration
+from .hooks import HookRunner, Phase
+from .keys import keyboard
 from .output import flush, silence_broken_pipe, write
 from .pomodoro import run_pomodoro
 from .signals import Terminated, cancellation_handlers
@@ -20,6 +23,11 @@ class ArgumentParser(argparse.ArgumentParser):
                 write(message, end='')
         else:
             super()._print_message(message, file)
+
+
+DURATIONS_HELP = 'Durations combine h, m, and s in that order: 25m, 1h30m, or 1h 30m.'
+KEYS_HELP = ('While a timer runs in a terminal, press p or Space to pause and resume, '
+             'or q to cancel.')
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -42,7 +50,8 @@ def main(argv: list[str] | None = None) -> int:
 def _main(argv: list[str] | None = None) -> int:
     parser = ArgumentParser(
         description='Start a duration or named timer (e.g. 15m, 1h30m, pomo).',
-        epilog=SPACED_MESSAGE,
+        epilog='\n\n'.join(textwrap.fill(text, 79) for text in (DURATIONS_HELP, KEYS_HELP)),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument('timer', nargs='?', help='duration, timer name, pomo, or NAME.pomo')
     parser.add_argument('--config', type=Path, help='TOML or JSON config path (default: XDG config directory or ~/.config/pypomo)')
@@ -52,6 +61,12 @@ def _main(argv: list[str] | None = None) -> int:
     parser.add_argument('--preview', action='store_true', help='show phases and total duration without starting a timer')
     parser.add_argument('--pretty', action=argparse.BooleanOptionalAction, default=None,
                         help='enable styled output (or --no-pretty to disable it)')
+    parser.add_argument('--hook', action='append', default=[], metavar='CMD',
+                        help='run CMD through the shell on every timer event (repeatable)')
+    parser.add_argument('--no-hooks', action='store_true', help='ignore hooks from the config file')
+    parser.add_argument('--auto-start', action=argparse.BooleanOptionalAction, default=None,
+                        help='start each Pomodoro phase automatically (or --no-auto-start '
+                             'to wait for Enter between phases)')
     try:
         package_version = version('pypomo')
     except PackageNotFoundError:
@@ -61,11 +76,10 @@ def _main(argv: list[str] | None = None) -> int:
     if extras:
         if any(value.startswith('-') and value[1:2].isdigit() for value in extras):
             parser.error('Duration must be greater than zero.')
-        if args.timer and DURATION_RE.fullmatch(args.timer) and all(
-            DURATION_RE.fullmatch(value) for value in extras
-        ):
-            parser.error(SPACED_MESSAGE)
-        parser.error(f"unrecognized arguments: {' '.join(extras)}")
+        if not (args.timer and DURATION_RE.fullmatch(args.timer)
+                and all(DURATION_RE.fullmatch(value) for value in extras)):
+            parser.error(f"unrecognized arguments: {' '.join(extras)}")
+        args.timer = ' '.join([args.timer, *extras])  # Unquoted spaced duration: 1h 30m.
     if args.timer is None and not args.list:
         parser.error('provide a duration or timer name, or use --list')
     if args.timer is not None and args.list:
@@ -81,7 +95,8 @@ def _main(argv: list[str] | None = None) -> int:
             for name, routine in sorted(routines.items()):
                 write(f'{name}: {routine.rounds} focus rounds · focus {format_duration(routine.focus)}'
                       f' · short break {format_duration(routine.short_break)}'
-                      f' · long break {format_duration(routine.long_break)}')
+                      f' · long break {format_duration(routine.long_break)}'
+                      + ('' if routine.auto_start else ' · waits between phases'))
             return 0
         routine = None
         if args.timer == 'pomo':
@@ -110,8 +125,18 @@ def _main(argv: list[str] | None = None) -> int:
         write(f'Total: {format_duration(total)}')
         return 0
     pretty = replace(config.pretty, enabled=args.pretty) if args.pretty is not None else config.pretty
-    if routine is not None:
-        run_pomodoro(routine, args.timer, live=args.live, pretty=pretty, silent=args.silent)
-    else:
-        run_timer(seconds, args.timer, live=args.live, pretty=pretty, silent=args.silent)
+    commands = {} if args.no_hooks else dict(config.hooks)
+    if args.hook:
+        commands['any'] = commands.get('any', []) + args.hook
+    hooks = HookRunner(commands, args.timer) if commands else None
+    with keyboard() as keys:
+        if routine is not None:
+            if args.auto_start is not None:
+                routine = replace(routine, auto_start=args.auto_start)
+            run_pomodoro(routine, args.timer, live=args.live, pretty=pretty, silent=args.silent, keys=keys,
+                         hooks=hooks)
+        else:
+            on_event = hooks.handler(Phase(args.timer, 'timer', seconds)) if hooks else None
+            run_timer(seconds, args.timer, live=args.live, pretty=pretty, silent=args.silent, keys=keys,
+                      on_event=on_event)
     return 0
