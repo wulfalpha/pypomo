@@ -134,7 +134,7 @@ class CliTests(unittest.TestCase):
         output = io.StringIO()
         with patch('pypomo.cli.load_config', return_value=Config()), contextlib.redirect_stdout(output):
             self.assertEqual(main(['1h', '30m', '--preview']), 0)
-        self.assertEqual(output.getvalue(), '1h 30m: 01:30:00\nTotal: 01:30:00\n')
+        self.assertTrue(output.getvalue().startswith('1h 30m: 01:30:00\nTotal: 01:30:00\nEnds: '))
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'config.toml'
             path.write_text('[timers]\ndeep = "1h 30m"\n[pomo]\nlong_break = "20m 30s"\n')

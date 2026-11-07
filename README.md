@@ -174,7 +174,11 @@ pypomo 1h30m --preview
 ```
 
 The total includes all focus sessions and breaks, including the final long
-break. The built-in routine totals `02:10:00`. `--preview` also supports named
+break. The built-in routine totals `02:10:00`. A final line estimates the local
+end time if the timer started now, such as `Ends: 14:35 if started now`, dated
+when it falls on a later day. It does not account for pauses, and routines that
+wait between phases say so. `--auto-start` and `--no-auto-start` apply to the
+preview. `--preview` also supports named
 timers and explicit durations. It cannot be combined with `--list`.
 `--silent` suppresses bells for every phase of a running routine.
 

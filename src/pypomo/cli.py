@@ -3,6 +3,7 @@ import argparse
 import sys
 import textwrap
 from dataclasses import replace
+from datetime import datetime, timedelta
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
@@ -28,6 +29,14 @@ class ArgumentParser(argparse.ArgumentParser):
 DURATIONS_HELP = 'Durations combine d, h, m, and s in that order: 25m, 1h30m, 1h 30m, or 2d.'
 KEYS_HELP = ('While a timer runs in a terminal, press p or Space to pause and resume, '
              'or q to cancel.')
+
+
+def end_time(seconds: int, now: datetime | None = None) -> str:
+    """Local clock time `seconds` from now, to the nearest minute; dated when not today."""
+    now = now or datetime.now()
+    end = now + timedelta(seconds=seconds)
+    end = (end + timedelta(seconds=30)).replace(second=0, microsecond=0)
+    return end.strftime('%H:%M' if end.date() == now.date() else '%Y-%m-%d %H:%M')
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -113,6 +122,8 @@ def _main(argv: list[str] | None = None) -> int:
             seconds = parse_duration(args.timer, config.default_units)
     except ValueError as exc:
         parser.error(str(exc))
+    if routine is not None and args.auto_start is not None:
+        routine = replace(routine, auto_start=args.auto_start)
     if args.preview:
         if routine is not None:
             total = 0
@@ -123,6 +134,8 @@ def _main(argv: list[str] | None = None) -> int:
             total = seconds
             write(f'{args.timer}: {format_duration(seconds)}')
         write(f'Total: {format_duration(total)}')
+        waits = routine is not None and not routine.auto_start
+        write(f"Ends: {end_time(total)} if started now{', plus time waiting between phases' if waits else ''}")
         return 0
     pretty = replace(config.pretty, enabled=args.pretty) if args.pretty is not None else config.pretty
     commands = {} if args.no_hooks else dict(config.hooks)
@@ -131,8 +144,6 @@ def _main(argv: list[str] | None = None) -> int:
     hooks = HookRunner(commands, args.timer) if commands else None
     with keyboard() as keys:
         if routine is not None:
-            if args.auto_start is not None:
-                routine = replace(routine, auto_start=args.auto_start)
             run_pomodoro(routine, args.timer, live=args.live, pretty=pretty, silent=args.silent, keys=keys,
                          hooks=hooks)
         else:

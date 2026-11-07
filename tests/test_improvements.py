@@ -6,6 +6,7 @@ import re
 import signal
 import subprocess
 import unittest
+from datetime import datetime
 from unittest.mock import patch
 
 from support import disable_keyboard
@@ -19,7 +20,7 @@ from test_edge_cases import (
     shown_seconds,
 )
 
-from pypomo.cli import main
+from pypomo.cli import end_time, main
 from pypomo.config import Config
 from pypomo.durations import MAX_SECONDS, parse_duration
 from pypomo.pomodoro import MAX_ROUNDS, Pomodoro, parse_pomodoro
@@ -56,8 +57,10 @@ class CommandTests(unittest.TestCase):
                 self.assertEqual(main(args), 0)
             timer.assert_not_called()
             routine.assert_not_called()
-            self.assertEqual(len(output.getvalue().splitlines()), phases + 1)
-            self.assertTrue(output.getvalue().endswith(f'Total: {total}\n'))
+            lines = output.getvalue().splitlines()
+            self.assertEqual(len(lines), phases + 2)
+            self.assertEqual(lines[-2], f'Total: {total}')
+            self.assertRegex(lines[-1], r'^Ends: (\d{4}-\d\d-\d\d )?\d\d:\d\d if started now$')
 
     def test_preview_custom_routine_inherits_and_counts_breaks(self):
         output = io.StringIO()
@@ -66,7 +69,31 @@ class CommandTests(unittest.TestCase):
             self.assertEqual(main(['sprint.pomo', '--preview']), 0)
         self.assertIn('short break 1/2: 00:00:02', output.getvalue())
         self.assertIn('long break 2/2: 00:00:05', output.getvalue())
-        self.assertTrue(output.getvalue().endswith('Total: 00:00:27\n'))
+        self.assertIn('\nTotal: 00:00:27\nEnds: ', output.getvalue())
+
+    def test_end_time(self):
+        now = datetime(2026, 11, 7, 14, 0, 10)
+        for seconds, expected in ((1500, '14:25'), (1519, '14:25'), (1520, '14:26'),
+                                  (10 * 3600, '2026-11-08 00:00'), (3 * 86400, '2026-11-10 14:00')):
+            with self.subTest(seconds=seconds):
+                self.assertEqual(end_time(seconds, now), expected)
+
+    def test_preview_end_time_and_waiting_note(self):
+        fixed = datetime(2026, 11, 7, 9, 0, 0)
+        for args, config, expected in (
+            (['pomo', '--preview'], Config(), 'Ends: 11:10 if started now'),
+            (['pomo', '--preview', '--no-auto-start'], Config(),
+             'Ends: 11:10 if started now, plus time waiting between phases'),
+            (['pomo', '--preview', '--auto-start'], Config(pomo=Pomodoro(auto_start=False)),
+             'Ends: 11:10 if started now'),
+            (['2d', '--preview'], Config(), 'Ends: 2026-11-09 09:00 if started now'),
+        ):
+            output = io.StringIO()
+            with self.subTest(args=args), patch('pypomo.cli.load_config', return_value=config), \
+                 patch('pypomo.cli.datetime', wraps=datetime) as clock, contextlib.redirect_stdout(output):
+                clock.now.return_value = fixed
+                self.assertEqual(main(args), 0)
+                self.assertEqual(output.getvalue().splitlines()[-1], expected)
 
     def test_unknown_name_points_to_list(self):
         result = run_cli('nonexistent')
