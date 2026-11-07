@@ -12,6 +12,7 @@ pypomo 15m
 pypomo 30s
 pypomo 2h
 pypomo 1h30m15s
+pypomo 1h 30m
 pypomo pomo
 pypomo --list
 ```
@@ -19,8 +20,10 @@ pypomo --list
 Durations use positive whole-number totals with `h`, `m`, and `s`. Compound
 units must appear in that order without repeats. Values such as `90m` are valid.
 Each duration is limited to 365 days (`8760h`), including durations in config files.
-Pre-1.0 versions do not yet support compound durations with spaces:
-use `1h30m`, not `1h 30m` (even when quoted).
+Spaces may separate units, with or without quotes: `pypomo 1h 30m` and
+`pypomo "1h 30m"` both equal `1h30m`, and config durations such as
+`"1h 30m"` work too. Spaces are allowed only between units (`5 m` is rejected),
+and tabs or other whitespace are not accepted.
 
 In a terminal, the timer name and `HH:MM:SS` countdown update on a single line:
 `pomo · 00:24:59 remaining`. Completion or cancellation replaces that line,

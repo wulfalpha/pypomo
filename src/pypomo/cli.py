@@ -7,7 +7,7 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from .config import NAME_RE, default_config_path, load_config
-from .durations import DURATION_RE, SPACED_MESSAGE, parse_duration
+from .durations import DURATION_RE, parse_duration
 from .keys import keyboard
 from .output import flush, silence_broken_pipe, write
 from .pomodoro import run_pomodoro
@@ -24,6 +24,7 @@ class ArgumentParser(argparse.ArgumentParser):
             super()._print_message(message, file)
 
 
+DURATIONS_HELP = 'Durations combine h, m, and s in that order: 25m, 1h30m, or 1h 30m.'
 KEYS_HELP = ('While a timer runs in a terminal, press p or Space to pause and resume, '
              'or q to cancel.')
 
@@ -48,7 +49,7 @@ def main(argv: list[str] | None = None) -> int:
 def _main(argv: list[str] | None = None) -> int:
     parser = ArgumentParser(
         description='Start a duration or named timer (e.g. 15m, 1h30m, pomo).',
-        epilog='\n\n'.join(textwrap.fill(text, 79) for text in (SPACED_MESSAGE, KEYS_HELP)),
+        epilog='\n\n'.join(textwrap.fill(text, 79) for text in (DURATIONS_HELP, KEYS_HELP)),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument('timer', nargs='?', help='duration, timer name, pomo, or NAME.pomo')
@@ -71,11 +72,10 @@ def _main(argv: list[str] | None = None) -> int:
     if extras:
         if any(value.startswith('-') and value[1:2].isdigit() for value in extras):
             parser.error('Duration must be greater than zero.')
-        if args.timer and DURATION_RE.fullmatch(args.timer) and all(
-            DURATION_RE.fullmatch(value) for value in extras
-        ):
-            parser.error(SPACED_MESSAGE)
-        parser.error(f"unrecognized arguments: {' '.join(extras)}")
+        if not (args.timer and DURATION_RE.fullmatch(args.timer)
+                and all(DURATION_RE.fullmatch(value) for value in extras)):
+            parser.error(f"unrecognized arguments: {' '.join(extras)}")
+        args.timer = ' '.join([args.timer, *extras])  # Unquoted spaced duration: 1h 30m.
     if args.timer is None and not args.list:
         parser.error('provide a duration or timer name, or use --list')
     if args.timer is not None and args.list:
