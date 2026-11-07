@@ -1,7 +1,7 @@
 [project]
 name = "pypomo"
-version = "0.1.0"
-description = "A CLI timer with named timers and compound durations"
+version = "0.2.0"
+description = "A terminal-first Pomodoro timer in the Unix tradition, with named timers, routines, and event hooks"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
