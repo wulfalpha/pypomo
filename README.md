@@ -285,10 +285,14 @@ pypomo pomo --hook '[ "$PYPOMO_EVENT" = end ] && [ "$PYPOMO_LAST" = 1 ] && notif
 ## Development
 
 ```bash
-PYTHONPATH=src python -m unittest discover -s tests -v
-PYTHONPATH=src python -m pypomo 1s
-ruff check src tests
+uv sync                      # create .venv with pypomo (editable) and ruff
+uv run python -m unittest discover -s tests -v
+uv run pypomo 1s
+uv run ruff check src tests
 ```
+
+Without uv, the tests need no dependencies:
+`PYTHONPATH=src python -m unittest discover -s tests -v`.
 
 ## Continuous integration
 
