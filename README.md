@@ -292,10 +292,11 @@ ruff check src tests
 
 ## Continuous integration
 
-GitHub Actions runs on pushes and pull requests, with a manual run option.
-The workflow lints the code and tests Python 3.12 on Linux, macOS, and Windows, builds the source distribution
-and wheel, installs the wheel, runs the test suite against the installed
-package, and checks `pypomo --help`, `pypomo --list`, and a one-second timer.
+GitHub Actions runs on pushes to `main` and on pull requests, with a manual run
+option. It tests Python 3.12 and 3.15 on Linux, macOS, and Windows, and 3.13 and
+3.14 on Linux. Each job lints the code, builds the source distribution and
+wheel, installs the wheel, runs the test suite against the installed package,
+and checks `pypomo --help`, `pypomo --list`, and a one-second timer.
 Linux PTY tests cover live output, Ctrl+C, pause/resume keys, and waiting between phases; POSIX signal tests run on Linux and
 macOS. Encoding tests run on every platform. Terminal appearance and interactive
 Windows console behavior still benefit from manual testing.
