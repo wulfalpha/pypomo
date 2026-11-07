@@ -2,15 +2,13 @@
 import os
 import subprocess
 import sys
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from collections.abc import Mapping
 
-EVENTS = ('start', 'end', 'pause', 'resume', 'cancel')
+from .events import EVENTS, Phase
+
 HOOK_KEYS = (*EVENTS, 'any')
 
 Command = str | list[str]
-# Receives an event name and the whole seconds remaining in the current timer.
-EventHandler = Callable[[str, int], None]
 
 
 def parse_hooks(data: object) -> dict[str, list[Command]]:
@@ -34,17 +32,6 @@ def parse_hooks(data: object) -> dict[str, list[Command]]:
     return result
 
 
-@dataclass(frozen=True)
-class Phase:
-    """What a hook is told about the timer that produced an event."""
-    label: str
-    phase: str
-    duration: int
-    round: int | None = None
-    rounds: int | None = None
-    last: bool = True
-
-
 class HookRunner:
     """Starts configured commands in the background and never lets them stop the timer.
 
@@ -63,8 +50,8 @@ class HookRunner:
     def __bool__(self) -> bool:
         return bool(self.commands)
 
-    def handler(self, phase: Phase) -> EventHandler:
-        return lambda event, remaining: self.emit(event, phase, remaining)
+    def __call__(self, event: str, phase: Phase, remaining: int) -> None:
+        self.emit(event, phase, remaining)
 
     def emit(self, event: str, phase: Phase, remaining: int) -> None:
         commands = self.commands.get(event, []) + self.commands.get('any', [])

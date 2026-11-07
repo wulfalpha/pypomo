@@ -248,9 +248,11 @@ resume = "playerctl play"
 any = 'echo "$(date -Is) $PYPOMO_EVENT $PYPOMO_LABEL" >> ~/.local/state/pomodoro.log'
 ```
 
-Events are `start`, `end`, `pause`, `resume`, and `cancel`; an `any` hook runs
-for every event, after the event's own hook. Each phase of a routine has its
-own `start` and `end`. Waiting for Enter between phases is not an event.
+Events are `start`, `end`, `pause`, `resume`, `cancel`, and `wait`; an `any`
+hook runs for every event, after the event's own hook. Each phase of a routine
+has its own `start` and `end`. `wait` happens when a routine with
+`auto_start = false` begins waiting for Enter before a phase, so a hook can say
+"break ready". Quitting while waiting sends `cancel` for that phase.
 A list runs the program directly; a string runs through the system shell
 (`sh` on POSIX, `cmd` on Windows), so shell variables, pipes, and redirection work.
 Add hooks for a single run with `--hook CMD` (repeatable, shell syntax,
@@ -258,7 +260,7 @@ equivalent to an extra `any` hook), or ignore configured hooks with `--no-hooks`
 
 | Variable | Value |
 | --- | --- |
-| `PYPOMO_EVENT` | `start`, `end`, `pause`, `resume`, or `cancel` |
+| `PYPOMO_EVENT` | `start`, `end`, `pause`, `resume`, `cancel`, or `wait` |
 | `PYPOMO_TIMER` | the timer as given: `25m`, `tea`, `sprint.pomo` |
 | `PYPOMO_LABEL` | the displayed label: `sprint.pomo · focus 1/3` |
 | `PYPOMO_PHASE` | `timer`, `focus`, `short_break`, or `long_break` |
@@ -282,6 +284,32 @@ Example: a desktop notification only when a whole routine finishes:
 ```bash
 pypomo pomo --hook '[ "$PYPOMO_EVENT" = end ] && [ "$PYPOMO_LAST" = 1 ] && notify-send "Routine done"'
 ```
+
+## JSON lines output
+
+`--format jsonl` replaces the countdown display with one JSON object per event
+on standard output, for `jq`, scripts, and logs:
+
+```bash
+pypomo pomo --format jsonl | jq -r '"\(.time) \(.event) \(.label)"'
+pypomo pomo --format jsonl >> ~/.local/state/pomodoro.jsonl
+```
+
+```json
+{"event": "end", "timer": "pomo", "label": "pomo \u00b7 focus 1/4", "phase": "focus", "round": 1, "rounds": 4, "duration": 1500, "remaining": 0, "last": false, "time": "2026-11-07T14:25:00-05:00"}
+```
+
+Events and fields match the [hook variables](#hooks), plus `time`, the local
+time with its UTC offset. `round` and `rounds` are `null` for single timers.
+Each line is written and flushed as the event happens, and the output is ASCII
+(other characters use JSON escapes), so it is valid in any locale.
+Nothing else is written to standard output: no countdown, prompts, or bell.
+Pause keys still work, and their events appear in the stream; a routine that
+waits between phases emits `wait` and starts on Enter (or a line of input).
+Hooks run alongside JSON output. The text display remains the default
+(`--format text`). `--format jsonl` cannot be combined with `--list`,
+`--preview`, or `--live`. Exit statuses are unchanged, so a stream that ends
+in `cancel` is followed by exit status 130.
 
 ## Development
 

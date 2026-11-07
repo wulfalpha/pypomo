@@ -8,11 +8,16 @@ All notable changes to pypomo are recorded here. The format follows
 
 ### Added
 - Ctrl+Break on Windows cancels the timer like SIGTERM, with a cancellation line.
+- `--format jsonl` writes one JSON object per event to stdout instead of the
+  countdown display, with the same fields as hook variables plus `time`.
+- A `wait` event, for hooks and JSON output, when a routine waits for Enter
+  before a phase; quitting while waiting sends `cancel`.
 - Package keywords, classifiers, and project URLs; a `dev` dependency group
   for `uv sync`.
 
 ### Changed
 - CI tests Python 3.12 through 3.15.
+- Tests are grouped by module, and the CLI entry point is split into smaller functions.
 
 ## [0.2.0] - 2026-11-07
 

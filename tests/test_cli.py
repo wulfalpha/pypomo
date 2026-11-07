@@ -26,13 +26,15 @@ class CliTests(unittest.TestCase):
              patch('pypomo.cli.run_timer') as timer:
             for value, seconds in [('15', 900), ('1h30m', 5400)]:
                 self.assertEqual(main([value]), 0)
-                timer.assert_called_with(seconds, value, live=False, pretty=Pretty(), silent=False, keys=None, on_event=None)
+                timer.assert_called_with(seconds, value, live=False, pretty=Pretty(), silent=False, keys=None, on_event=None,
+                                     display=True)
 
     def test_live_flag(self):
         with patch('pypomo.cli.load_config', return_value=Config()), \
              patch('pypomo.cli.run_timer') as timer:
             self.assertEqual(main(['1s', '--live']), 0)
-            timer.assert_called_once_with(1, '1s', live=True, pretty=Pretty(), silent=False, keys=None, on_event=None)
+            timer.assert_called_once_with(1, '1s', live=True, pretty=Pretty(), silent=False, keys=None, on_event=None,
+                                     display=True)
 
     def test_spaced_arguments(self):
         with patch('pypomo.cli.load_config', return_value=Config()), \
