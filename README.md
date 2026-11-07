@@ -17,9 +17,11 @@ pypomo pomo
 pypomo --list
 ```
 
-Durations use positive whole-number totals with `h`, `m`, and `s`. Compound
-units must appear in that order without repeats. Values such as `90m` are valid.
-Each duration is limited to 365 days (`8760h`), including durations in config files.
+Durations use positive whole-number totals with `d`, `h`, `m`, and `s`
+(days, hours, minutes, seconds). Compound units must appear in that order
+without repeats. Values such as `90m` and `36h` are valid. Countdowns always
+display as `HH:MM:SS`, so `2d` shows `48:00:00`. Each duration is limited to
+365 days (`365d`), including durations in config files.
 Spaces may separate units, with or without quotes: `pypomo 1h 30m` and
 `pypomo "1h 30m"` both equal `1h30m`, and config durations such as
 `"1h 30m"` work too. Spaces are allowed only between units (`5 m` is rejected),
@@ -99,7 +101,7 @@ An invalid TOML config reports an error rather than silently falling back to JSO
 
 With this config, `pypomo 15` means 15 minutes, `pypomo break` means 15 minutes,
 and `pypomo pomo` runs the default Pomodoro routine. Explicit units always take precedence.
-`default_units` accepts `seconds`, `minutes`, `hours`, or `s`, `m`, `h`.
+`default_units` accepts `seconds`, `minutes`, `hours`, `days`, or `s`, `m`, `h`, `d`.
 Without it, bare numbers are rejected. Configured durations are strings and
 use the same syntax and defaults as CLI durations.
 
@@ -172,7 +174,11 @@ pypomo 1h30m --preview
 ```
 
 The total includes all focus sessions and breaks, including the final long
-break. The built-in routine totals `02:10:00`. `--preview` also supports named
+break. The built-in routine totals `02:10:00`. A final line estimates the local
+end time if the timer started now, such as `Ends: 14:35 if started now`, dated
+when it falls on a later day. It does not account for pauses, and routines that
+wait between phases say so. `--auto-start` and `--no-auto-start` apply to the
+preview. `--preview` also supports named
 timers and explicit durations. It cannot be combined with `--list`.
 `--silent` suppresses bells for every phase of a running routine.
 

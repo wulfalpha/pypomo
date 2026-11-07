@@ -32,6 +32,26 @@ class DurationTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 parse_duration(value)
 
+    def test_days(self):
+        for value, expected in [('1d', 86400), ('2d12h', 216000), ('1d 2h 3m 4s', 93784),
+                                ('365d', 365 * 86400), ('0d5m', 300)]:
+            with self.subTest(value=value):
+                self.assertEqual(parse_duration(value), expected)
+        for units in ('d', 'days'):
+            self.assertEqual(parse_duration('2', units), 172800)
+        for value, message in (('366d', 'maximum is 365 days'), ('364d24h1s', 'maximum is 365 days'),
+                               ('1h1d', 'in order: d, h, m, s'), ('1d1d', 'in order'), ('1D', 'Invalid')):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, message):
+                parse_duration(value)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'config.toml'
+            path.write_text('default_units = "days"\n[timers]\nweek = "7"\nsprint = "1d 12h"\n')
+            self.assertEqual(load_config(path).timers, {'week': 604800, 'sprint': 129600})
+        with patch('pypomo.cli.load_config', return_value=Config()), \
+             patch('pypomo.cli.run_timer') as timer:
+            self.assertEqual(main(['2d', '6h']), 0)
+            self.assertEqual(timer.call_args.args, (194400, '2d 6h'))
+
     def test_spaced_duration(self):
         for value, expected in [('1h 30m', 5400), ('1h  30m 15s', 5415), ('1h30m 15s', 5415),
                                 ('2h 0m', 7200)]:
@@ -114,7 +134,7 @@ class CliTests(unittest.TestCase):
         output = io.StringIO()
         with patch('pypomo.cli.load_config', return_value=Config()), contextlib.redirect_stdout(output):
             self.assertEqual(main(['1h', '30m', '--preview']), 0)
-        self.assertEqual(output.getvalue(), '1h 30m: 01:30:00\nTotal: 01:30:00\n')
+        self.assertTrue(output.getvalue().startswith('1h 30m: 01:30:00\nTotal: 01:30:00\nEnds: '))
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'config.toml'
             path.write_text('[timers]\ndeep = "1h 30m"\n[pomo]\nlong_break = "20m 30s"\n')

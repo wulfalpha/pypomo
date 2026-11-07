@@ -17,6 +17,8 @@ All notable changes to pypomo are recorded here. The format follows
   `--hook CMD` adds a one-off hook; `--no-hooks` ignores configured hooks.
   Hooks run in the background and never affect the timer.
 - `pretty.colors.paused` for paused and ready-to-start lines.
+- `d` (days) duration unit, such as `2d` or `1d 12h`, and `days` for `default_units`.
+- `--preview` ends with an estimated end time: `Ends: 14:35 if started now`.
 
 ### Changed
 - Spaced compound durations such as `1h 30m` (quoted or not, and in config
@@ -52,5 +54,5 @@ Hardening from the [October 2026 review](docs/review-2026-10.md):
   `XDG_CONFIG_HOME` values are handled.
 - `NO_COLOR` and `TERM=dumb` are respected.
 
-[Unreleased]: https://github.com/wulfalpha/pypomo/compare/77a630f...HEAD
-[0.1.0]: https://github.com/wulfalpha/pypomo/commits/77a630f
+[Unreleased]: https://github.com/wulfalpha/pypomo/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/wulfalpha/pypomo/releases/tag/v0.1.0
