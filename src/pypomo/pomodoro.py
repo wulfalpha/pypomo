@@ -3,6 +3,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, replace
 
 from .durations import parse_duration
+from .hooks import HookRunner, Phase
 from .keys import Keyboard
 from .pretty import Pretty, section
 from .timer import run_timer, wait_for_start
@@ -50,11 +51,13 @@ def parse_pomodoro(data: object, base: Pomodoro, units: str | None, name: str) -
 
 def run_pomodoro(routine: Pomodoro, label: str, *, live: bool = False,
                  pretty: Pretty | None = None, silent: bool = False,
-                 keys: Keyboard | None = None) -> None:
+                 keys: Keyboard | None = None, hooks: HookRunner | None = None) -> None:
     for index, (phase, seconds, round_number) in enumerate(routine.phases()):
         final = phase == 'long break'
         phase_label = f'{label} · {phase} {round_number}/{routine.rounds}'
         if index and not routine.auto_start:
             wait_for_start(seconds, phase_label, live=live, pretty=pretty, keys=keys)
+        on_event = hooks.handler(Phase(phase_label, phase.replace(' ', '_'), seconds, round_number,
+                                       routine.rounds, final)) if hooks else None
         run_timer(seconds, phase_label, live=live, pretty=pretty, silent=silent, finish_line=final,
-                  completion='routine complete' if final else 'complete', keys=keys)
+                  completion='routine complete' if final else 'complete', keys=keys, on_event=on_event)

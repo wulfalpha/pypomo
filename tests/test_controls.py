@@ -14,7 +14,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from support import disable_keyboard
+from support import FakeClock, FakeKeys, disable_keyboard
 
 from pypomo.cli import main
 from pypomo.config import Config, load_config
@@ -23,37 +23,6 @@ from pypomo.pomodoro import Pomodoro, run_pomodoro
 from pypomo.timer import run_timer
 
 setUpModule = disable_keyboard
-
-
-class FakeClock:
-    def __init__(self, start=1000.0):
-        self.now = start
-
-    def monotonic(self):
-        return self.now
-
-    def sleep(self, seconds):
-        self.now += seconds
-
-
-class FakeKeys:
-    """Delivers scripted keypresses at fixed fake-clock times."""
-
-    def __init__(self, clock, events):
-        self.clock = clock
-        self.events = sorted((clock.now + at, key) for at, key in events)
-
-    def read(self, timeout):
-        if self.events and (timeout is None or self.events[0][0] <= self.clock.now + timeout):
-            at, key = self.events.pop(0)
-            self.clock.now = max(self.clock.now, at)
-            if key is KeyboardInterrupt:
-                raise KeyboardInterrupt
-            return key
-        if timeout is None:
-            raise AssertionError('blocked waiting for a key that never arrives')
-        self.clock.now += timeout
-        return None
 
 
 def run_with_keys(fn, events, *, live=False, stdin=None):

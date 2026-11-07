@@ -217,6 +217,54 @@ Output uses readable ASCII separators and bar glyphs when the stream's encoding
 cannot represent the configured characters. Other unencodable text is escaped.
 Live rendering requires a terminal that understands ANSI control sequences.
 
+## Hooks
+
+pypomo does the timing and leaves notifications, sounds, and logging to other
+programs. A hook is a command run when a timer event happens:
+
+```toml
+[hooks]
+end = ["notify-send", "pypomo", "Time is up"]
+pause = "playerctl pause"
+resume = "playerctl play"
+any = 'echo "$(date -Is) $PYPOMO_EVENT $PYPOMO_LABEL" >> ~/.local/state/pomodoro.log'
+```
+
+Events are `start`, `end`, `pause`, `resume`, and `cancel`; an `any` hook runs
+for every event, after the event's own hook. Each phase of a routine has its
+own `start` and `end`. Waiting for Enter between phases is not an event.
+A list runs the program directly; a string runs through the system shell
+(`sh` on POSIX, `cmd` on Windows), so shell variables, pipes, and redirection work.
+Add hooks for a single run with `--hook CMD` (repeatable, shell syntax,
+equivalent to an extra `any` hook), or ignore configured hooks with `--no-hooks`.
+
+| Variable | Value |
+| --- | --- |
+| `PYPOMO_EVENT` | `start`, `end`, `pause`, `resume`, or `cancel` |
+| `PYPOMO_TIMER` | the timer as given: `25m`, `tea`, `sprint.pomo` |
+| `PYPOMO_LABEL` | the displayed label: `sprint.pomo · focus 1/3` |
+| `PYPOMO_PHASE` | `timer`, `focus`, `short_break`, or `long_break` |
+| `PYPOMO_ROUND`, `PYPOMO_ROUNDS` | round and total rounds; empty for single timers |
+| `PYPOMO_DURATION` | the timer or phase length in seconds |
+| `PYPOMO_REMAINING` | whole seconds left (`0` at `end`) |
+| `PYPOMO_LAST` | `1` for a single timer or a routine's final phase, else `0` |
+
+Hooks never affect the timer. pypomo starts them in the background without
+waiting, so a slow hook does not delay the countdown, and hooks for consecutive
+events may overlap. A hook's exit status is ignored. A command that cannot be
+started produces one warning on stderr and the timer continues. Hooks receive no
+standard input and their standard output is discarded, keeping pypomo's output
+clean for pipes; standard error stays connected so failures are visible. Each
+hook runs in its own session or process group, so Ctrl+C or closing the
+terminal does not interrupt a hook that is already running.
+`--preview` and `--list` never run hooks.
+
+Example: a desktop notification only when a whole routine finishes:
+
+```bash
+pypomo pomo --hook '[ "$PYPOMO_EVENT" = end ] && [ "$PYPOMO_LAST" = 1 ] && notify-send "Routine done"'
+```
+
 ## Development
 
 ```bash

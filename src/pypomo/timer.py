@@ -5,6 +5,7 @@ import shutil
 import sys
 import time
 
+from .hooks import EventHandler
 from .keys import ENTER_KEYS, PAUSE_KEYS, QUIT_KEYS, Keyboard
 from .output import write
 from .pretty import Bar, Colors, Pretty, render
@@ -58,13 +59,21 @@ def _wait_for(keys: Keyboard, wanted: frozenset[str]) -> None:
 
 def run_timer(seconds: int, label: str, *, live: bool = False, pretty: Pretty | None = None,
               finish_line: bool = True, completion: str = 'complete', silent: bool = False,
-              keys: Keyboard | None = None) -> None:
-    """Count down `seconds`. With `keys`, p/space pauses and resumes, q cancels."""
+              keys: Keyboard | None = None, on_event: EventHandler | None = None) -> None:
+    """Count down `seconds`. With `keys`, p/space pauses and resumes, q cancels.
+
+    `on_event(name, remaining)` is called for start, pause, resume, cancel and end.
+    """
+    def emit(event: str, remaining: int) -> None:
+        if on_event is not None:
+            on_event(event, remaining)
+
     screen = Screen(label, seconds, live=live, pretty=pretty, silent=silent, finish_line=finish_line)
     deadline = time.monotonic() + seconds
     paused: float | None = None  # Remaining seconds while paused.
     try:
         screen.show(f'{format_duration(seconds)} remaining', seconds)
+        emit('start', seconds)
         last_shown: int | None = seconds
         while True:
             remaining = deadline - time.monotonic()
@@ -86,9 +95,11 @@ def run_timer(seconds: int, label: str, *, live: bool = False, pretty: Pretty | 
                 paused = max(0.0, deadline - time.monotonic())
                 text = format_duration(math.ceil(paused))
                 screen.show(f'paused at {text} remaining · press p to resume', paused, state='paused')
+                emit('pause', math.ceil(paused))
                 _wait_for(keys, PAUSE_KEYS)
                 if not screen.interactive:
                     screen.show(f'resumed at {text} remaining', paused)
+                emit('resume', math.ceil(paused))
                 deadline = time.monotonic() + paused
                 paused, last_shown = None, None
     except KeyboardInterrupt:
@@ -97,8 +108,13 @@ def run_timer(seconds: int, label: str, *, live: bool = False, pretty: Pretty | 
         else:
             remaining = max(0, math.ceil(deadline - time.monotonic()))
         screen.cancelled(f'cancelled at {format_duration(remaining)} remaining', remaining)
+        try:
+            emit('cancel', remaining)
+        except KeyboardInterrupt:
+            pass
         raise
     screen.show(completion, 0, state='complete', final=True)
+    emit('end', 0)
 
 
 def wait_for_start(seconds: int, label: str, *, live: bool = False, pretty: Pretty | None = None,

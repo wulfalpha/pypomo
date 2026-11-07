@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .config import NAME_RE, default_config_path, load_config
 from .durations import DURATION_RE, parse_duration
+from .hooks import HookRunner, Phase
 from .keys import keyboard
 from .output import flush, silence_broken_pipe, write
 from .pomodoro import run_pomodoro
@@ -60,6 +61,9 @@ def _main(argv: list[str] | None = None) -> int:
     parser.add_argument('--preview', action='store_true', help='show phases and total duration without starting a timer')
     parser.add_argument('--pretty', action=argparse.BooleanOptionalAction, default=None,
                         help='enable styled output (or --no-pretty to disable it)')
+    parser.add_argument('--hook', action='append', default=[], metavar='CMD',
+                        help='run CMD through the shell on every timer event (repeatable)')
+    parser.add_argument('--no-hooks', action='store_true', help='ignore hooks from the config file')
     parser.add_argument('--auto-start', action=argparse.BooleanOptionalAction, default=None,
                         help='start each Pomodoro phase automatically (or --no-auto-start '
                              'to wait for Enter between phases)')
@@ -121,11 +125,18 @@ def _main(argv: list[str] | None = None) -> int:
         write(f'Total: {format_duration(total)}')
         return 0
     pretty = replace(config.pretty, enabled=args.pretty) if args.pretty is not None else config.pretty
+    commands = {} if args.no_hooks else dict(config.hooks)
+    if args.hook:
+        commands['any'] = commands.get('any', []) + args.hook
+    hooks = HookRunner(commands, args.timer) if commands else None
     with keyboard() as keys:
         if routine is not None:
             if args.auto_start is not None:
                 routine = replace(routine, auto_start=args.auto_start)
-            run_pomodoro(routine, args.timer, live=args.live, pretty=pretty, silent=args.silent, keys=keys)
+            run_pomodoro(routine, args.timer, live=args.live, pretty=pretty, silent=args.silent, keys=keys,
+                         hooks=hooks)
         else:
-            run_timer(seconds, args.timer, live=args.live, pretty=pretty, silent=args.silent, keys=keys)
+            on_event = hooks.handler(Phase(args.timer, 'timer', seconds)) if hooks else None
+            run_timer(seconds, args.timer, live=args.live, pretty=pretty, silent=args.silent, keys=keys,
+                      on_event=on_event)
     return 0
