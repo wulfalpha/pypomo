@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from support import disable_keyboard
+from support import disable_keyboard, run_cli
 
 from pypomo.cli import main
 from pypomo.config import Config
@@ -75,3 +75,15 @@ class WindowsPipeTests(unittest.TestCase):
             main(['1s'])
         self.assertIs(raised.exception, error)
         silence.assert_not_called()
+
+
+class EncodingEdges(unittest.TestCase):
+    def test_bug_non_utf8_stdout(self):
+        """Plain output contains U+00B7 '·'; pretty bar uses U+2588/U+2591. On an ASCII or
+        legacy code-page stdout (e.g. Windows redirect, PYTHONIOENCODING, some CI) it crashes."""
+        for enc, args in (('ascii', ('1s',)), ('cp1252', ('1s', '--live', '--pretty')),
+                          ('ascii', ('--list',)), ('ascii', ('pomo', '--preview'))):
+            with self.subTest(enc=enc, args=args):
+                result = run_cli(*args, env_extra={'PYTHONIOENCODING': enc, 'PYTHONUTF8': '0'})
+                self.assertNotIn('Traceback', result.stderr, result.stderr[-300:])
+                self.assertEqual(result.returncode, 0)

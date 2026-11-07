@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from support import FakeClock, FakeKeys, disable_keyboard
+from support import PY, SRC, FakeClock, FakeKeys, disable_keyboard
 
 from pypomo.cli import main
 from pypomo.config import Config, load_config
@@ -187,10 +187,6 @@ class ConfigAndCliTests(unittest.TestCase):
                 self.assertIsNone(keys)
 
 
-PY = sys.executable
-SRC = str(Path(__file__).resolve().parents[1] / 'src')
-
-
 @unittest.skipUnless(sys.platform.startswith('linux'), 'PTY tests run on Linux')
 class PtyControls(unittest.TestCase):
     """Real terminal: cbreak input, pause/resume, waiting, and mode restoration."""
@@ -199,7 +195,7 @@ class PtyControls(unittest.TestCase):
         """`script` is a list of (trigger text, bytes to send, delay before sending)."""
         import pty  # POSIX only; importing it at module level breaks Windows test discovery.
 
-        env = dict(os.environ, TERM='xterm', PYTHONPATH=SRC, XDG_CONFIG_HOME=tempfile.mkdtemp())
+        env = dict(os.environ, TERM='xterm', PYTHONPATH=str(SRC), XDG_CONFIG_HOME=tempfile.mkdtemp())
         env.pop('NO_COLOR', None)
         pid, fd = pty.fork()
         if pid == 0:
@@ -265,7 +261,7 @@ class PtyControls(unittest.TestCase):
             [PY, '-c', 'import sys, termios; from pypomo.keys import keyboard\n'
                        'with keyboard() as k: assert k is not None; '
                        'assert not termios.tcgetattr(0)[3] & termios.ICANON'],
-            stdin=terminal, env=dict(os.environ, PYTHONPATH=SRC), timeout=10,
+            stdin=terminal, env=dict(os.environ, PYTHONPATH=str(SRC)), timeout=10,
             capture_output=True)
         self.assertEqual(child.returncode, 0, child.stderr)
         self.assertEqual(termios.tcgetattr(terminal), before)
