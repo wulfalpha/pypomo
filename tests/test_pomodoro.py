@@ -6,9 +6,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from support import disable_keyboard
+
 from pypomo.cli import main
 from pypomo.config import Config, load_config
 from pypomo.pomodoro import Pomodoro, run_pomodoro
+
+setUpModule = disable_keyboard
 
 
 class PomodoroTests(unittest.TestCase):

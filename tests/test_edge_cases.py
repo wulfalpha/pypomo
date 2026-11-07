@@ -21,6 +21,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from support import disable_keyboard
+
 from pypomo import cli
 from pypomo.cli import main
 from pypomo.config import Config, default_config_path, load_config
@@ -28,6 +30,8 @@ from pypomo.durations import parse_duration
 from pypomo.pomodoro import Pomodoro, run_pomodoro
 from pypomo.pretty import Pretty, parse_pretty, render
 from pypomo.timer import run_timer
+
+setUpModule = disable_keyboard
 
 # Directory containing the imported pypomo package (src/ or site-packages), so
 # subprocesses run the same code as the in-process tests.

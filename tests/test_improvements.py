@@ -8,6 +8,7 @@ import subprocess
 import unittest
 from unittest.mock import patch
 
+from support import disable_keyboard
 from test_edge_cases import (
     PY,
     FakeClock,
@@ -25,6 +26,8 @@ from pypomo.pomodoro import MAX_ROUNDS, Pomodoro, parse_pomodoro
 from pypomo.pretty import Pretty
 from pypomo.signals import Terminated
 from pypomo.timer import run_timer
+
+setUpModule = disable_keyboard
 
 
 class LimitsTests(unittest.TestCase):

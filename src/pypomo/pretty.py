@@ -28,6 +28,7 @@ class Colors:
     bar: str = 'green'
     complete: str = 'green'
     cancelled: str = 'yellow'
+    paused: str = 'yellow'
 
 
 @dataclass

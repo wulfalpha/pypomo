@@ -6,10 +6,14 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from support import disable_keyboard
+
 from pypomo.cli import main
 from pypomo.config import Config, default_config_path, load_config
 from pypomo.pretty import Pretty, parse_pretty, render
 from pypomo.timer import run_timer
+
+setUpModule = disable_keyboard
 
 
 class PrettyTests(unittest.TestCase):

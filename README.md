@@ -37,8 +37,18 @@ On POSIX systems, SIGTERM and SIGHUP also cancel the timer, with exit statuses
 143 and 129 respectively. A broken output pipe exits quietly with status 141.
 If stdout is unavailable, the timer runs silently to its deadline.
 
+## Pausing
+
+While a timer runs in a terminal, press `p` (or Space) to pause and `p` again
+to resume; the paused time is added back to the timer. Press `q` to cancel,
+exactly like Ctrl+C. Keys work whenever standard input is the terminal and
+pypomo is the foreground job, including with redirected output, where the log
+gains `paused at …` and `resumed at …` lines. Keys are read immediately and are
+not echoed; the terminal's normal input mode is restored on exit.
+
 The timer uses a monotonic clock, so changing the system clock does not change
 the countdown. Ctrl+Z does not pause it: stopped process time still counts.
+Use `p` to pause.
 Laptop-suspend behavior depends on the platform's monotonic clock; pypomo does
 not currently normalize it or guarantee that suspended time counts. Ordinary
 sleep overshoot does not accumulate into display drift, though long scheduling
@@ -76,6 +86,7 @@ remaining = "white"
 bar = "green"
 complete = "green"
 cancelled = "yellow"
+paused = "yellow"   # paused and ready-to-start lines
 ```
 
 Existing `config.json` files remain supported with the same settings as nested
@@ -99,8 +110,17 @@ use `pypomo 25m` or define a timer named `focus`.
 
 `pypomo pomo` runs four 25-minute focus sessions, with 5-minute short breaks
 between them and a 15-minute long break after the last focus session. Phases
-advance automatically; the routine finishes after the long break rather than
-repeating indefinitely. Ctrl+C cancels the entire routine.
+advance automatically by default; the routine finishes after the long break
+rather than repeating indefinitely. Ctrl+C or `q` cancels the entire routine.
+
+To wait for you between phases, set `auto_start = false` or pass
+`--no-auto-start` (`--auto-start` overrides a config that disables it). After
+each phase ends, the display shows `sprint.pomo · short break 1/3 · ready ·
+press Enter to start`, and the next phase begins when you press Enter. Waiting
+time does not count against the next phase; `q` or Ctrl+C cancels instead.
+Without a terminal keyboard, pypomo reads a line from standard input instead,
+and starts immediately if standard input is closed or exhausted, so unattended
+runs never block. The flags have no effect on single timers.
 
 Customize the default or add named routines in your config:
 
@@ -110,6 +130,7 @@ focus = "25m"
 short_break = "5m"
 long_break = "15m"
 rounds = 4
+auto_start = true   # false: wait for Enter before each phase after the first
 
 [pomodoros.sprint]
 focus = "15m"
@@ -124,7 +145,7 @@ pypomo sprint.pomo --pretty
 pypomo --list
 ```
 
-`rounds` is a positive integer counting focus sessions. A one-round routine
+`rounds` is a positive integer counting focus sessions. `auto_start` is a boolean. A one-round routine
 has one focus session followed by a long break, with no short break.
 The maximum is 1,000 focus rounds per routine.
 Durations must be positive strings, using the same duration syntax and
@@ -207,6 +228,6 @@ GitHub Actions runs on pushes and pull requests, with a manual run option.
 The workflow lints the code and tests Python 3.12 on Linux, macOS, and Windows, builds the source distribution
 and wheel, installs the wheel, runs the test suite against the installed
 package, and checks `pypomo --help`, `pypomo --list`, and a one-second timer.
-Linux PTY tests cover live output and Ctrl+C; POSIX signal tests run on Linux and
+Linux PTY tests cover live output, Ctrl+C, pause/resume keys, and waiting between phases; POSIX signal tests run on Linux and
 macOS. Encoding tests run on every platform. Terminal appearance and interactive
 Windows console behavior still benefit from manual testing.

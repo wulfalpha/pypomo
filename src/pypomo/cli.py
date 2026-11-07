@@ -1,12 +1,14 @@
 """argparse entry point."""
 import argparse
 import sys
+import textwrap
 from dataclasses import replace
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from .config import NAME_RE, default_config_path, load_config
 from .durations import DURATION_RE, SPACED_MESSAGE, parse_duration
+from .keys import keyboard
 from .output import flush, silence_broken_pipe, write
 from .pomodoro import run_pomodoro
 from .signals import Terminated, cancellation_handlers
@@ -20,6 +22,10 @@ class ArgumentParser(argparse.ArgumentParser):
                 write(message, end='')
         else:
             super()._print_message(message, file)
+
+
+KEYS_HELP = ('While a timer runs in a terminal, press p or Space to pause and resume, '
+             'or q to cancel.')
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -42,7 +48,8 @@ def main(argv: list[str] | None = None) -> int:
 def _main(argv: list[str] | None = None) -> int:
     parser = ArgumentParser(
         description='Start a duration or named timer (e.g. 15m, 1h30m, pomo).',
-        epilog=SPACED_MESSAGE,
+        epilog='\n\n'.join(textwrap.fill(text, 79) for text in (SPACED_MESSAGE, KEYS_HELP)),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument('timer', nargs='?', help='duration, timer name, pomo, or NAME.pomo')
     parser.add_argument('--config', type=Path, help='TOML or JSON config path (default: XDG config directory or ~/.config/pypomo)')
@@ -52,6 +59,9 @@ def _main(argv: list[str] | None = None) -> int:
     parser.add_argument('--preview', action='store_true', help='show phases and total duration without starting a timer')
     parser.add_argument('--pretty', action=argparse.BooleanOptionalAction, default=None,
                         help='enable styled output (or --no-pretty to disable it)')
+    parser.add_argument('--auto-start', action=argparse.BooleanOptionalAction, default=None,
+                        help='start each Pomodoro phase automatically (or --no-auto-start '
+                             'to wait for Enter between phases)')
     try:
         package_version = version('pypomo')
     except PackageNotFoundError:
@@ -81,7 +91,8 @@ def _main(argv: list[str] | None = None) -> int:
             for name, routine in sorted(routines.items()):
                 write(f'{name}: {routine.rounds} focus rounds · focus {format_duration(routine.focus)}'
                       f' · short break {format_duration(routine.short_break)}'
-                      f' · long break {format_duration(routine.long_break)}')
+                      f' · long break {format_duration(routine.long_break)}'
+                      + ('' if routine.auto_start else ' · waits between phases'))
             return 0
         routine = None
         if args.timer == 'pomo':
@@ -110,8 +121,11 @@ def _main(argv: list[str] | None = None) -> int:
         write(f'Total: {format_duration(total)}')
         return 0
     pretty = replace(config.pretty, enabled=args.pretty) if args.pretty is not None else config.pretty
-    if routine is not None:
-        run_pomodoro(routine, args.timer, live=args.live, pretty=pretty, silent=args.silent)
-    else:
-        run_timer(seconds, args.timer, live=args.live, pretty=pretty, silent=args.silent)
+    with keyboard() as keys:
+        if routine is not None:
+            if args.auto_start is not None:
+                routine = replace(routine, auto_start=args.auto_start)
+            run_pomodoro(routine, args.timer, live=args.live, pretty=pretty, silent=args.silent, keys=keys)
+        else:
+            run_timer(seconds, args.timer, live=args.live, pretty=pretty, silent=args.silent, keys=keys)
     return 0
