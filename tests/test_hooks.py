@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from support import FakeClock, FakeKeys, disable_keyboard
+from support import SRC, FakeClock, FakeKeys, disable_keyboard
 
 from pypomo.cli import main
 from pypomo.config import Config, load_config
@@ -174,8 +174,7 @@ class ProcessTests(unittest.TestCase):
         log = directory / 'events.log'
         path = directory / 'config.toml'
         path.write_text(config.replace('LOG', log.as_posix()), encoding='utf-8')
-        src = str(Path(__file__).resolve().parents[1] / 'src')
-        env = dict(os.environ, PYTHONPATH=src, XDG_CONFIG_HOME=str(directory))
+        env = dict(os.environ, PYTHONPATH=str(SRC), XDG_CONFIG_HOME=str(directory))
         args = [arg.replace('LOG', log.as_posix()) for arg in args]
         result = subprocess.run([sys.executable, '-m', 'pypomo', *args, '--config', str(path)],
                                 capture_output=True, text=True, env=env, timeout=30)
