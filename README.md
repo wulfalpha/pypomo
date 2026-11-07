@@ -50,7 +50,8 @@ updates through a pipe, for example `pypomo 5m --live | lolcat`. The receiving
 program must support terminal control sequences and flush output promptly.
 Ctrl+C cancels the timer with exit status 130. Invalid input exits with status 2.
 On POSIX systems, SIGTERM and SIGHUP also cancel the timer, with exit statuses
-143 and 129 respectively. A broken output pipe exits quietly with status 141.
+143 and 129 respectively. On Windows, Ctrl+Break cancels the same way, with
+exit status 149. A broken output pipe exits quietly with status 141.
 If stdout is unavailable, the timer runs silently to its deadline.
 
 ## Pausing
