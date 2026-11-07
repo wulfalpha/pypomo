@@ -17,6 +17,7 @@ All notable changes to pypomo are recorded here. The format follows
   `--hook CMD` adds a one-off hook; `--no-hooks` ignores configured hooks.
   Hooks run in the background and never affect the timer.
 - `pretty.colors.paused` for paused and ready-to-start lines.
+- `d` (days) duration unit, such as `2d` or `1d 12h`, and `days` for `default_units`.
 
 ### Changed
 - Spaced compound durations such as `1h 30m` (quoted or not, and in config

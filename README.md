@@ -17,9 +17,11 @@ pypomo pomo
 pypomo --list
 ```
 
-Durations use positive whole-number totals with `h`, `m`, and `s`. Compound
-units must appear in that order without repeats. Values such as `90m` are valid.
-Each duration is limited to 365 days (`8760h`), including durations in config files.
+Durations use positive whole-number totals with `d`, `h`, `m`, and `s`
+(days, hours, minutes, seconds). Compound units must appear in that order
+without repeats. Values such as `90m` and `36h` are valid. Countdowns always
+display as `HH:MM:SS`, so `2d` shows `48:00:00`. Each duration is limited to
+365 days (`365d`), including durations in config files.
 Spaces may separate units, with or without quotes: `pypomo 1h 30m` and
 `pypomo "1h 30m"` both equal `1h30m`, and config durations such as
 `"1h 30m"` work too. Spaces are allowed only between units (`5 m` is rejected),
@@ -99,7 +101,7 @@ An invalid TOML config reports an error rather than silently falling back to JSO
 
 With this config, `pypomo 15` means 15 minutes, `pypomo break` means 15 minutes,
 and `pypomo pomo` runs the default Pomodoro routine. Explicit units always take precedence.
-`default_units` accepts `seconds`, `minutes`, `hours`, or `s`, `m`, `h`.
+`default_units` accepts `seconds`, `minutes`, `hours`, `days`, or `s`, `m`, `h`, `d`.
 Without it, bare numbers are rejected. Configured durations are strings and
 use the same syntax and defaults as CLI durations.
 

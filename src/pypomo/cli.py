@@ -25,7 +25,7 @@ class ArgumentParser(argparse.ArgumentParser):
             super()._print_message(message, file)
 
 
-DURATIONS_HELP = 'Durations combine h, m, and s in that order: 25m, 1h30m, or 1h 30m.'
+DURATIONS_HELP = 'Durations combine d, h, m, and s in that order: 25m, 1h30m, 1h 30m, or 2d.'
 KEYS_HELP = ('While a timer runs in a terminal, press p or Space to pause and resume, '
              'or q to cancel.')
 

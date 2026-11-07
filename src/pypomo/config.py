@@ -6,7 +6,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .durations import DEFAULT_UNITS, parse_duration
+from .durations import DEFAULT_UNITS, UNITS_MESSAGE, parse_duration
 from .hooks import Command, parse_hooks
 from .pomodoro import Pomodoro, parse_pomodoro
 from .pretty import Pretty, parse_pretty
@@ -57,7 +57,7 @@ def load_config(path: Path, *, required: bool = False) -> Config:
     if 'default_units' in data:
         unit = data['default_units']
         if not isinstance(unit, str) or unit not in DEFAULT_UNITS:
-            raise ValueError('default_units must be seconds, minutes, hours, s, m, or h.')
+            raise ValueError(UNITS_MESSAGE)
         config.default_units = unit
     config.pretty = parse_pretty(data.get('pretty', {}))
     config.hooks = parse_hooks(data.get('hooks', {}))
