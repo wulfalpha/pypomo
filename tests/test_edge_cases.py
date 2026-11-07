@@ -1,9 +1,9 @@
-"""Edge-case tests for pypomo. See improvements.md for the findings behind them.
+"""Edge-case tests for pypomo. See docs/review-2026-10.md for the findings behind them.
 
 Run with the normal suite:
     PYTHONPATH=src python -m unittest discover -s tests -v
 
-Tests named ``test_bug_*`` are regressions for the bugs recorded in improvements.md.
+Tests named ``test_bug_*`` are regressions for the bugs recorded in docs/review-2026-10.md.
 Real-process tests (signals, pipes, pty) use 1-5 second timers.
 """
 import contextlib
@@ -179,7 +179,7 @@ class CliEdges(unittest.TestCase):
             self.skipTest('pypomo not installed')
         code, out, *_ = self.call(['--version'])
         # Passes today only because both say 0.1.0; the string is hard-coded in cli.py
-        # (see improvements.md, code quality).
+        # (see docs/review-2026-10.md, code quality).
         self.assertIn(installed, out)
 
     def test_help_works(self):
