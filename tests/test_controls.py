@@ -3,7 +3,6 @@ import contextlib
 import io
 import json
 import os
-import pty
 import select
 import signal
 import subprocess
@@ -198,6 +197,8 @@ class PtyControls(unittest.TestCase):
 
     def run_pty(self, args, script, timeout=20):
         """`script` is a list of (trigger text, bytes to send, delay before sending)."""
+        import pty  # POSIX only; importing it at module level breaks Windows test discovery.
+
         env = dict(os.environ, TERM='xterm', PYTHONPATH=SRC, XDG_CONFIG_HOME=tempfile.mkdtemp())
         env.pop('NO_COLOR', None)
         pid, fd = pty.fork()
@@ -253,6 +254,7 @@ class PtyControls(unittest.TestCase):
         self.assertGreaterEqual(elapsed, 3.0)
 
     def test_terminal_modes_restored(self):
+        import pty
         import termios
 
         controller, terminal = pty.openpty()

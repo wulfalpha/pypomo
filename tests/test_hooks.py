@@ -190,15 +190,22 @@ class ProcessTests(unittest.TestCase):
         return sorted(log.read_text().splitlines()) if log.exists() else []
 
     def test_argv_hook_receives_events(self):
-        script = ("import os; open(r'LOG', 'a').write("
-                  "os.environ['PYPOMO_EVENT'] + ' ' + os.environ['PYPOMO_PHASE'] + ' '"
-                  " + os.environ['PYPOMO_LAST'] + chr(10))")
+        # Hooks for consecutive events overlap, so each writes its own file rather than
+        # appending to a shared log (concurrent appends can interleave on Windows).
+        script = ("import os; e = os.environ; open(r'LOG.' + e['PYPOMO_EVENT'] + '-' + e['PYPOMO_PHASE']"
+                  " + '-' + e['PYPOMO_LAST'], 'w').close()")
         exe = sys.executable.replace('\\', '/')
         result, log = self.run_cli(['t.pomo'], f"[hooks]\nany = ['{exe}', '-c', \"{script}\"]\n"
                                                '[pomodoros.t]\nfocus = "1s"\nlong_break = "1s"\nrounds = 1\n')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.wait_for_lines(log, 4), sorted([
-            'start focus 0', 'end focus 0', 'start long_break 1', 'end long_break 1']))
+        expected = sorted(['start-focus-0', 'end-focus-0', 'start-long_break-1', 'end-long_break-1'])
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            seen = sorted(path.name.removeprefix(log.name + '.') for path in log.parent.glob(log.name + '.*'))
+            if len(seen) >= len(expected):
+                break
+            time.sleep(0.05)
+        self.assertEqual(seen, expected)
 
     @unittest.skipIf(sys.platform == 'win32', 'POSIX shell syntax')
     def test_shell_hook_and_failing_hook_do_not_affect_exit(self):
