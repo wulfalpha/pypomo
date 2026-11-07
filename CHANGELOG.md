@@ -52,5 +52,5 @@ Hardening from the [October 2026 review](docs/review-2026-10.md):
   `XDG_CONFIG_HOME` values are handled.
 - `NO_COLOR` and `TERM=dumb` are respected.
 
-[Unreleased]: https://github.com/wulfalpha/pypomo/compare/77a630f...HEAD
-[0.1.0]: https://github.com/wulfalpha/pypomo/commits/77a630f
+[Unreleased]: https://github.com/wulfalpha/pypomo/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/wulfalpha/pypomo/releases/tag/v0.1.0
