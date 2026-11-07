@@ -50,7 +50,8 @@ updates through a pipe, for example `pypomo 5m --live | lolcat`. The receiving
 program must support terminal control sequences and flush output promptly.
 Ctrl+C cancels the timer with exit status 130. Invalid input exits with status 2.
 On POSIX systems, SIGTERM and SIGHUP also cancel the timer, with exit statuses
-143 and 129 respectively. A broken output pipe exits quietly with status 141.
+143 and 129 respectively. On Windows, Ctrl+Break cancels the same way, with
+exit status 149. A broken output pipe exits quietly with status 141.
 If stdout is unavailable, the timer runs silently to its deadline.
 
 ## Pausing
@@ -285,17 +286,22 @@ pypomo pomo --hook '[ "$PYPOMO_EVENT" = end ] && [ "$PYPOMO_LAST" = 1 ] && notif
 ## Development
 
 ```bash
-PYTHONPATH=src python -m unittest discover -s tests -v
-PYTHONPATH=src python -m pypomo 1s
-ruff check src tests
+uv sync                      # create .venv with pypomo (editable) and ruff
+uv run python -m unittest discover -s tests -v
+uv run pypomo 1s
+uv run ruff check src tests
 ```
+
+Without uv, the tests need no dependencies:
+`PYTHONPATH=src python -m unittest discover -s tests -v`.
 
 ## Continuous integration
 
-GitHub Actions runs on pushes and pull requests, with a manual run option.
-The workflow lints the code and tests Python 3.12 on Linux, macOS, and Windows, builds the source distribution
-and wheel, installs the wheel, runs the test suite against the installed
-package, and checks `pypomo --help`, `pypomo --list`, and a one-second timer.
+GitHub Actions runs on pushes to `main` and on pull requests, with a manual run
+option. It tests Python 3.12 and 3.15 on Linux, macOS, and Windows, and 3.13 and
+3.14 on Linux. Each job lints the code, builds the source distribution and
+wheel, installs the wheel, runs the test suite against the installed package,
+and checks `pypomo --help`, `pypomo --list`, and a one-second timer.
 Linux PTY tests cover live output, Ctrl+C, pause/resume keys, and waiting between phases; POSIX signal tests run on Linux and
 macOS. Encoding tests run on every platform. Terminal appearance and interactive
 Windows console behavior still benefit from manual testing.

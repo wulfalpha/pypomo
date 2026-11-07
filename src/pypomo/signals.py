@@ -18,7 +18,8 @@ def cancellation_handlers():
     previous = {}
     try:
         if threading.current_thread() is threading.main_thread():
-            for name in ('SIGTERM', 'SIGHUP'):
+            # SIGBREAK is Ctrl+Break on Windows; SIGHUP is POSIX only.
+            for name in ('SIGTERM', 'SIGHUP', 'SIGBREAK'):
                 signum = getattr(signal, name, None)
                 if signum is not None:
                     previous[signum] = signal.signal(signum, _terminate)

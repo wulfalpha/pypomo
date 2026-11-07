@@ -6,6 +6,14 @@ All notable changes to pypomo are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Ctrl+Break on Windows cancels the timer like SIGTERM, with a cancellation line.
+- Package keywords, classifiers, and project URLs; a `dev` dependency group
+  for `uv sync`.
+
+### Changed
+- CI tests Python 3.12 through 3.15.
+
 ## [0.2.0] - 2026-11-07
 
 ### Added

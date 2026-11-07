@@ -211,6 +211,17 @@ class CancellationTests(unittest.TestCase):
             self.assertEqual(main(['1s']), 128 + signal.SIGTERM)
         self.assertEqual(signal.getsignal(signal.SIGTERM), previous)
 
+    @unittest.skipUnless(hasattr(signal, 'SIGUSR1'), 'needs a spare POSIX signal')
+    def test_ctrl_break_cancels_on_windows(self):
+        # Stand in a spare signal for Windows' SIGBREAK to check it is handled and restored.
+        from pypomo.signals import cancellation_handlers
+        previous = signal.getsignal(signal.SIGUSR1)
+        with patch.object(signal, 'SIGBREAK', signal.SIGUSR1, create=True):
+            with cancellation_handlers(), self.assertRaises(Terminated) as raised:
+                signal.raise_signal(signal.SIGUSR1)
+        self.assertEqual(raised.exception.signum, signal.SIGUSR1)
+        self.assertEqual(signal.getsignal(signal.SIGUSR1), previous)
+
     def test_second_interrupt_during_cancellation_is_quiet(self):
         with patch('pypomo.cli.load_config', return_value=Config()), \
              patch('pypomo.timer.time.sleep', side_effect=KeyboardInterrupt), \
