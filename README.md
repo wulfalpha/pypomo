@@ -1,11 +1,22 @@
 # pypomo
 
-A Python CLI timer with named timers and configurable Pomodoro routines.
+A terminal-first Pomodoro timer in the Unix tradition. pypomo keeps time well:
+durations, named timers, finite Pomodoro routines, pause and resume, and clean
+output for terminals and pipes. Notifications, sounds, and logging are left to
+the tools you already use, through [event hooks](#hooks).
 Requires Python 3.12 or newer; no runtime dependencies.
 
-Licensed under the [MIT License](LICENSE).
+Licensed under the [MIT License](LICENSE). See the [changelog](CHANGELOG.md)
+for what changed in each release.
 
-Install from this directory with `pip install .`, or run with `uv run pypomo`.
+Install the latest release with uv or pipx:
+
+```bash
+uv tool install git+https://github.com/wulfalpha/pypomo@v0.2.0
+pipx install git+https://github.com/wulfalpha/pypomo@v0.2.0
+```
+
+Or install from a checkout with `pip install .`, or run with `uv run pypomo`.
 
 ```bash
 pypomo 15m

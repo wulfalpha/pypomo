@@ -6,6 +6,8 @@ All notable changes to pypomo are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-07
+
 ### Added
 - Pause and resume a running timer with `p` or Space; `q` cancels like Ctrl+C.
   Keys work whenever stdin is the foreground terminal, including with
@@ -54,5 +56,6 @@ Hardening from the [October 2026 review](docs/review-2026-10.md):
   `XDG_CONFIG_HOME` values are handled.
 - `NO_COLOR` and `TERM=dumb` are respected.
 
-[Unreleased]: https://github.com/wulfalpha/pypomo/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/wulfalpha/pypomo/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/wulfalpha/pypomo/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/wulfalpha/pypomo/releases/tag/v0.1.0
