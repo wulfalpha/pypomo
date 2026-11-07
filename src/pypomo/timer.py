@@ -5,7 +5,7 @@ import shutil
 import sys
 import time
 
-from .hooks import EventHandler
+from .events import EventHandler
 from .keys import ENTER_KEYS, PAUSE_KEYS, QUIT_KEYS, Keyboard
 from .output import write
 from .pretty import Bar, Colors, Pretty, render
@@ -21,15 +21,17 @@ class Screen:
     """Draws one timer's status as an in-place line or as plain lines."""
 
     def __init__(self, label: str, total: int, *, live: bool, pretty: Pretty | None,
-                 silent: bool, finish_line: bool):
-        self.label, self.total = label, total
+                 silent: bool, finish_line: bool, enabled: bool = True):
+        self.label, self.total, self.enabled = label, total, enabled
         self.silent, self.finish_line = silent, finish_line
-        self.interactive = ((live or (sys.stdout is not None and sys.stdout.isatty()))
+        self.interactive = (enabled and (live or (sys.stdout is not None and sys.stdout.isatty()))
                             and os.environ.get('TERM') != 'dumb')
         self.settings = (pretty if pretty is not None and pretty.enabled
                          else Pretty(bar=Bar(enabled=False), colors=Colors(enabled=False)))
 
     def show(self, status: str, remaining: float, *, state: str = 'remaining', final: bool = False) -> None:
+        if not self.enabled:
+            return
         interactive = self.interactive
         prefix = '\r\033[2K' if interactive else ''
         ending = '\n' if not interactive or (final and (self.finish_line or state == 'cancelled')) else ''
@@ -59,16 +61,19 @@ def _wait_for(keys: Keyboard, wanted: frozenset[str]) -> None:
 
 def run_timer(seconds: int, label: str, *, live: bool = False, pretty: Pretty | None = None,
               finish_line: bool = True, completion: str = 'complete', silent: bool = False,
-              keys: Keyboard | None = None, on_event: EventHandler | None = None) -> None:
+              keys: Keyboard | None = None, on_event: EventHandler | None = None,
+              display: bool = True) -> None:
     """Count down `seconds`. With `keys`, p/space pauses and resumes, q cancels.
 
     `on_event(name, remaining)` is called for start, pause, resume, cancel and end.
+    With `display=False` nothing is drawn, leaving stdout to event output.
     """
     def emit(event: str, remaining: int) -> None:
         if on_event is not None:
             on_event(event, remaining)
 
-    screen = Screen(label, seconds, live=live, pretty=pretty, silent=silent, finish_line=finish_line)
+    screen = Screen(label, seconds, live=live, pretty=pretty, silent=silent, finish_line=finish_line,
+                    enabled=display)
     deadline = time.monotonic() + seconds
     paused: float | None = None  # Remaining seconds while paused.
     try:
@@ -118,7 +123,7 @@ def run_timer(seconds: int, label: str, *, live: bool = False, pretty: Pretty | 
 
 
 def wait_for_start(seconds: int, label: str, *, live: bool = False, pretty: Pretty | None = None,
-                   keys: Keyboard | None = None) -> None:
+                   keys: Keyboard | None = None, display: bool = True) -> None:
     """Show a ready line and wait for Enter before a phase starts.
 
     Without a keyboard, a line is read from stdin; a closed or exhausted stdin
@@ -126,7 +131,8 @@ def wait_for_start(seconds: int, label: str, *, live: bool = False, pretty: Pret
     """
     if keys is None and sys.stdin is None:
         return
-    screen = Screen(label, seconds, live=live, pretty=pretty, silent=True, finish_line=False)
+    screen = Screen(label, seconds, live=live, pretty=pretty, silent=True, finish_line=False,
+                    enabled=display)
     try:
         screen.show('ready · press Enter to start', seconds, state='paused')
         if keys is not None:

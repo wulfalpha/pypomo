@@ -14,7 +14,8 @@ from support import SRC, FakeClock, FakeKeys, disable_keyboard
 
 from pypomo.cli import main
 from pypomo.config import Config, load_config
-from pypomo.hooks import HookRunner, Phase, parse_hooks
+from pypomo.events import Events, Phase
+from pypomo.hooks import HookRunner, parse_hooks
 from pypomo.pomodoro import Pomodoro, run_pomodoro
 from pypomo.timer import run_timer
 
@@ -76,14 +77,24 @@ class EventSequenceTests(unittest.TestCase):
                            [(1.5, 'p'), (9, KeyboardInterrupt)])
         self.assertEqual(seen, [('start', 5), ('pause', 4), ('cancel', 4), 'interrupted'])
 
-    def test_waiting_between_phases_is_not_an_event(self):
+    def test_wait_event_precedes_each_waiting_phase(self):
         calls = []
         runner = HookRunner({'any': ['x']}, 'r.pomo')
-        runner.emit = lambda event, phase, remaining: calls.append((event, phase.phase, phase.last))
-        self.record(lambda keys, on: run_pomodoro(Pomodoro(1, 1, 1, 1, auto_start=False), 'r.pomo',
-                                                  keys=keys, hooks=runner), [(1.5, '\r')])
-        self.assertEqual(calls, [('start', 'focus', False), ('end', 'focus', False),
-                                 ('start', 'long_break', True), ('end', 'long_break', True)])
+        runner.emit = lambda event, phase, remaining: calls.append((event, phase.phase, remaining, phase.last))
+        self.record(lambda keys, on: run_pomodoro(Pomodoro(1, 1, 3, 1, auto_start=False), 'r.pomo',
+                                                  keys=keys, events=Events([runner])), [(1.5, '\r')])
+        self.assertEqual(calls, [('start', 'focus', 1, False), ('end', 'focus', 0, False),
+                                 ('wait', 'long_break', 3, True), ('start', 'long_break', 3, True),
+                                 ('end', 'long_break', 0, True)])
+
+    def test_quitting_while_waiting_sends_cancel(self):
+        calls = []
+        events = Events([lambda event, phase, remaining: calls.append((event, phase.phase, remaining))])
+        seen = self.record(lambda keys, on: run_pomodoro(Pomodoro(1, 2, 3, 2, auto_start=False), 'r.pomo',
+                                                         keys=keys, events=events), [(1.5, 'q')])
+        self.assertEqual(seen, ['interrupted'])
+        self.assertEqual(calls, [('start', 'focus', 1), ('end', 'focus', 0), ('wait', 'short_break', 2),
+                                 ('cancel', 'short_break', 2)])
 
 
 class RunnerTests(unittest.TestCase):
@@ -154,7 +165,7 @@ class CliTests(unittest.TestCase):
     def test_no_hooks_flag_ignores_config_but_keeps_flag(self):
         runner, _, routine = self.hooks_for(['pomo', '--no-hooks'], {'end': ['d']})
         runner.assert_not_called()
-        self.assertIsNone(routine.call_args.kwargs['hooks'])
+        self.assertIsNone(routine.call_args.kwargs['events'])
         runner, _, routine = self.hooks_for(['pomo', '--no-hooks', '--hook', 'a'], {'end': ['d']})
         self.assertEqual(runner.call_args.args, ({'any': ['a']}, 'pomo'))
 

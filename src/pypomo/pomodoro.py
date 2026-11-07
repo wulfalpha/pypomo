@@ -3,7 +3,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, replace
 
 from .durations import parse_duration
-from .hooks import HookRunner, Phase
+from .events import Events, Phase
 from .keys import Keyboard
 from .pretty import Pretty, section
 from .timer import run_timer, wait_for_start
@@ -51,13 +51,21 @@ def parse_pomodoro(data: object, base: Pomodoro, units: str | None, name: str) -
 
 def run_pomodoro(routine: Pomodoro, label: str, *, live: bool = False,
                  pretty: Pretty | None = None, silent: bool = False,
-                 keys: Keyboard | None = None, hooks: HookRunner | None = None) -> None:
+                 keys: Keyboard | None = None, events: Events | None = None, display: bool = True) -> None:
     for index, (phase, seconds, round_number) in enumerate(routine.phases()):
         final = phase == 'long break'
         phase_label = f'{label} · {phase} {round_number}/{routine.rounds}'
+        on_event = events.handler(Phase(phase_label, phase.replace(' ', '_'), seconds, round_number,
+                                        routine.rounds, final)) if events else None
         if index and not routine.auto_start:
-            wait_for_start(seconds, phase_label, live=live, pretty=pretty, keys=keys)
-        on_event = hooks.handler(Phase(phase_label, phase.replace(' ', '_'), seconds, round_number,
-                                       routine.rounds, final)) if hooks else None
+            if on_event:
+                on_event('wait', seconds)
+            try:
+                wait_for_start(seconds, phase_label, live=live, pretty=pretty, keys=keys, display=display)
+            except KeyboardInterrupt:
+                if on_event:
+                    on_event('cancel', seconds)
+                raise
         run_timer(seconds, phase_label, live=live, pretty=pretty, silent=silent, finish_line=final,
-                  completion='routine complete' if final else 'complete', keys=keys, on_event=on_event)
+                  completion='routine complete' if final else 'complete', keys=keys, on_event=on_event,
+                  display=display)

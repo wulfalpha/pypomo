@@ -9,7 +9,8 @@ from pathlib import Path
 
 from .config import NAME_RE, Config, default_config_path, load_config
 from .durations import DURATION_RE, parse_duration
-from .hooks import HookRunner, Phase
+from .events import Events, JsonLines, Phase
+from .hooks import HookRunner
 from .keys import keyboard
 from .output import flush, silence_broken_pipe, write
 from .pomodoro import Pomodoro, run_pomodoro
@@ -74,14 +75,17 @@ def _main(argv: list[str] | None = None) -> int:
         return 0
     pretty = replace(config.pretty, enabled=args.pretty) if args.pretty is not None else config.pretty
     hooks = hook_runner(args, config)
+    jsonl = args.format == 'jsonl'
+    events = Events([listener for listener in (hooks, JsonLines(args.timer) if jsonl else None) if listener])
+    events = events or None
     with keyboard() as keys:
         if isinstance(target, Pomodoro):
             run_pomodoro(target, args.timer, live=args.live, pretty=pretty, silent=args.silent, keys=keys,
-                         hooks=hooks)
+                         events=events, display=not jsonl)
         else:
-            on_event = hooks.handler(Phase(args.timer, 'timer', target)) if hooks else None
+            on_event = events.handler(Phase(args.timer, 'timer', target)) if events else None
             run_timer(target, args.timer, live=args.live, pretty=pretty, silent=args.silent, keys=keys,
-                      on_event=on_event)
+                      on_event=on_event, display=not jsonl)
     return 0
 
 
@@ -102,6 +106,9 @@ def build_parser() -> ArgumentParser:
     parser.add_argument('--hook', action='append', default=[], metavar='CMD',
                         help='run CMD through the shell on every timer event (repeatable)')
     parser.add_argument('--no-hooks', action='store_true', help='ignore hooks from the config file')
+    parser.add_argument('--format', choices=('text', 'jsonl'), default='text',
+                        help='text: the countdown display (default); jsonl: one JSON object per '
+                             'event on stdout, with no display')
     parser.add_argument('--auto-start', action=argparse.BooleanOptionalAction, default=None,
                         help='start each Pomodoro phase automatically (or --no-auto-start '
                              'to wait for Enter between phases)')
@@ -129,6 +136,10 @@ def parse_args(parser: ArgumentParser, argv: list[str] | None) -> argparse.Names
         parser.error('use --list without a timer')
     if args.preview and args.list:
         parser.error('use --preview with a timer or routine, not --list')
+    if args.format == 'jsonl':
+        for flag, used in (('--list', args.list), ('--preview', args.preview), ('--live', args.live)):
+            if used:
+                parser.error(f'--format jsonl is for running timers; it cannot be used with {flag}')
     return args
 
 
