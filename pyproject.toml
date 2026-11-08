@@ -2,7 +2,7 @@
 # Distribution name on PyPI ("pypomo" was too similar to an existing project).
 # The command and the import package remain "pypomo".
 name = "pypomodo"
-version = "0.3.0"
+version = "0.3.1"
 description = "A terminal-first Pomodoro timer in the Unix tradition, with named timers, routines, and event hooks"
 readme = "README.md"
 license = "MIT"
