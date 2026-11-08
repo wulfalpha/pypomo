@@ -324,6 +324,21 @@ uv run ruff check src tests
 Without uv, the tests need no dependencies:
 `PYTHONPATH=src python -m unittest discover -s tests -v`.
 
+## Releasing
+
+The package is named `pypomodo` on PyPI (`pypomo` was too similar to an
+existing project); the command and the Python package remain `pypomo`.
+To release, bump `version` in `pyproject.toml`, date the changelog section,
+merge, then tag the merge commit and push the tag:
+
+```bash
+git tag -a v0.4.0 -m "pypomo 0.4.0" && git push origin v0.4.0
+```
+
+The `Publish` workflow checks that the tag matches the package version, builds
+and tests the wheel, and uploads it to PyPI with trusted publishing from the
+`pypi` environment. No API token is stored in the repository.
+
 ## Continuous integration
 
 GitHub Actions runs on pushes to `main` and on pull requests, with a manual run

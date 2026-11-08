@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 from support import PY, FakeClock, cli_env, disable_keyboard, run_cli
 
-from pypomo.cli import end_time, main
+from pypomo.cli import DISTRIBUTION, end_time, main
 from pypomo.config import Config, load_config
 from pypomo.pomodoro import Pomodoro
 from pypomo.pretty import Pretty
@@ -130,7 +130,7 @@ class CliEdges(unittest.TestCase):
     def test_version_matches_package_metadata(self):
         from importlib.metadata import PackageNotFoundError, version
         try:
-            installed = version('pypomo')
+            installed = version(DISTRIBUTION)
         except PackageNotFoundError:
             self.skipTest('pypomo not installed')
         code, out, *_ = self.call(['--version'])

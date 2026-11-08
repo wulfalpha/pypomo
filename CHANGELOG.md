@@ -6,7 +6,14 @@ All notable changes to pypomo are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Tag-triggered publishing to PyPI with trusted publishing.
+
 ### Changed
+- The distribution is named `pypomodo` for PyPI. The `pypomo` command, the
+  `pypomo` Python package, and the `~/.config/pypomo` config location are
+  unchanged. If you installed from git with uv or pipx, uninstall the old
+  `pypomo` tool before reinstalling (`uv tool uninstall pypomo`).
 - The build backend requirement is now `uv_build>=0.13.7,<0.14.0`, so building
   with current uv no longer warns or fetches an older backend.
 
