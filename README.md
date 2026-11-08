@@ -10,11 +10,12 @@ Requires Python 3.12 or newer; no runtime dependencies.
 Licensed under the [MIT License](LICENSE). See the [changelog](CHANGELOG.md)
 for what changed in each release.
 
-Install the latest release with uv or pipx:
+Install from PyPI with uv or pipx. The package is named `pypomodo`; the command
+is `pypomo`:
 
 ```bash
-uv tool install git+https://github.com/wulfalpha/pypomo@v0.3.0
-pipx install git+https://github.com/wulfalpha/pypomo@v0.3.0
+uv tool install pypomodo
+pipx install pypomodo
 ```
 
 Or install from a checkout with `pip install .`, or run with `uv run pypomo`.
