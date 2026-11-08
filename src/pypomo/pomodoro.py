@@ -51,7 +51,8 @@ def parse_pomodoro(data: object, base: Pomodoro, units: str | None, name: str) -
 
 def run_pomodoro(routine: Pomodoro, label: str, *, live: bool = False,
                  pretty: Pretty | None = None, silent: bool = False,
-                 keys: Keyboard | None = None, events: Events | None = None, display: bool = True) -> None:
+                 keys: Keyboard | None = None, events: Events | None = None, display: bool = True,
+                 ticks: bool = False) -> None:
     for index, (phase, seconds, round_number) in enumerate(routine.phases()):
         final = phase == 'long break'
         phase_label = f'{label} · {phase} {round_number}/{routine.rounds}'
@@ -68,4 +69,4 @@ def run_pomodoro(routine: Pomodoro, label: str, *, live: bool = False,
                 raise
         run_timer(seconds, phase_label, live=live, pretty=pretty, silent=silent, finish_line=final,
                   completion='routine complete' if final else 'complete', keys=keys, on_event=on_event,
-                  display=display)
+                  display=display, ticks=ticks)

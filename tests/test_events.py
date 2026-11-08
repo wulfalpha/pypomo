@@ -8,16 +8,18 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
-from support import POSIX, PY, FakeClock, cli_env, disable_keyboard
+from support import POSIX, PY, FakeClock, FakeKeys, cli_env, disable_keyboard
 
 from pypomo.cli import main
 from pypomo.config import Config
 from pypomo.events import Events, JsonLines, Phase, event_record
+from pypomo.hooks import HookRunner
 from pypomo.pomodoro import Pomodoro
+from pypomo.timer import run_timer
 
 setUpModule = disable_keyboard
 
-FIELDS = ['event', 'timer', 'label', 'phase', 'round', 'rounds', 'duration', 'remaining', 'last', 'time']
+FIELDS = ['event', 'timer', 'label', 'phase', 'round', 'rounds', 'duration', 'remaining', 'last', 'time', 'ends_at']
 
 
 def run_main(args, config=None, stdin=None):
@@ -42,7 +44,19 @@ class RecordTests(unittest.TestCase):
         self.assertEqual(list(record), FIELDS)
         self.assertEqual(record, {'event': 'end', 'timer': 'sprint.pomo', 'label': 'sprint.pomo · focus 1/3',
                                   'phase': 'focus', 'round': 1, 'rounds': 3, 'duration': 900,
-                                  'remaining': 0, 'last': False, 'time': '2026-11-07T14:25:00-05:00'})
+                                  'remaining': 0, 'last': False, 'time': '2026-11-07T14:25:00-05:00',
+                                  'ends_at': None})
+
+    def test_ends_at_only_while_running(self):
+        now = datetime(2026, 11, 7, 14, 0, 0, tzinfo=timezone(timedelta(hours=-5)))
+        phase = Phase('25m', 'timer', 1500)
+        for event in ('start', 'resume', 'tick'):
+            with self.subTest(event=event):
+                self.assertEqual(event_record(event, '25m', phase, 1500, now)['ends_at'],
+                                 '2026-11-07T14:25:00-05:00')
+        for event in ('pause', 'wait', 'cancel', 'end'):
+            with self.subTest(event=event):
+                self.assertIsNone(event_record(event, '25m', phase, 1500, now)['ends_at'])
 
     def test_single_timer_record_and_ascii_line(self):
         out = io.StringIO()
@@ -110,6 +124,44 @@ class FormatTests(unittest.TestCase):
         self.assertEqual(len(out.splitlines()), 2)
         self.assertEqual([call.args[0] for call in emit.call_args_list], ['start', 'end'])
 
+    def test_ticks_count_down_between_start_and_end(self):
+        code, out, err = run_main(['3s', '--format', 'jsonl', '--ticks'])
+        self.assertEqual((code, err), (0, ''))
+        records = [json.loads(line) for line in out.splitlines()]
+        self.assertEqual([(r['event'], r['remaining']) for r in records],
+                         [('start', 3), ('tick', 2), ('tick', 1), ('end', 0)])
+        self.assertTrue(all(r['ends_at'] for r in records[:-1]))
+
+    def test_ticks_reach_every_routine_phase(self):
+        config = Config(pomodoros={'t': Pomodoro(2, 2, 2, 1)})
+        _, out, _ = run_main(['t.pomo', '--format', 'jsonl', '--ticks'], config)
+        records = [json.loads(line) for line in out.splitlines()]
+        self.assertEqual([(r['event'], r['phase'], r['remaining']) for r in records], [
+            ('start', 'focus', 2), ('tick', 'focus', 1), ('end', 'focus', 0),
+            ('start', 'long_break', 2), ('tick', 'long_break', 1), ('end', 'long_break', 0)])
+
+    def test_ticks_pause_without_repeating_a_second(self):
+        clock, out = FakeClock(), io.StringIO()
+        keys = FakeKeys(clock, [(1.5, 'p'), (10, 'p')])
+        with patch('pypomo.timer.time.monotonic', clock.monotonic), \
+             patch('pypomo.timer.time.sleep', clock.sleep), contextlib.redirect_stdout(out):
+            run_timer(4, '4s', keys=keys, display=False, ticks=True,
+                      on_event=Events([JsonLines('4s')]).handler(Phase('4s', 'timer', 4)))
+        records = [json.loads(line) for line in out.getvalue().splitlines()]
+        self.assertEqual([(r['event'], r['remaining']) for r in records], [
+            ('start', 4), ('tick', 3), ('pause', 3), ('resume', 3), ('tick', 2), ('tick', 1), ('end', 0)])
+
+    def test_ticks_never_start_hooks(self):
+        with patch('pypomo.hooks.subprocess.Popen') as popen:
+            code, out, _ = run_main(['3s', '--format', 'jsonl', '--ticks'], Config(hooks={'any': ['true']}))
+        self.assertEqual(code, 0)
+        self.assertIn('"tick"', out)
+        self.assertEqual([call.kwargs['env']['PYPOMO_EVENT'] for call in popen.call_args_list],
+                         ['start', 'end'])
+        with patch('pypomo.hooks.subprocess.Popen') as popen:
+            HookRunner({'any': ['true']}, 't').emit('tick', Phase('t', 'timer', 1), 1)
+        popen.assert_not_called()
+
     def test_text_is_the_default_and_unchanged(self):
         _, out, _ = run_main(['1s'])
         self.assertEqual(out, '1s · 00:00:01 remaining\n1s · complete\n')
@@ -124,6 +176,13 @@ class FormatTests(unittest.TestCase):
                 self.assertEqual(code, 2)
                 self.assertEqual(out, '')
                 self.assertTrue('--format jsonl is for running timers' in err or 'invalid choice' in err, err)
+
+    def test_ticks_require_jsonl(self):
+        for args in (['5m', '--ticks'], ['5m', '--format', 'text', '--ticks']):
+            with self.subTest(args=args):
+                code, out, err = run_main(args)
+                self.assertEqual((code, out), (2, ''))
+                self.assertIn('--ticks requires --format jsonl', err)
 
 
 class ProcessTests(unittest.TestCase):

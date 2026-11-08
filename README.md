@@ -298,11 +298,15 @@ pypomo pomo --format jsonl >> ~/.local/state/pomodoro.jsonl
 ```
 
 ```json
-{"event": "end", "timer": "pomo", "label": "pomo \u00b7 focus 1/4", "phase": "focus", "round": 1, "rounds": 4, "duration": 1500, "remaining": 0, "last": false, "time": "2026-11-07T14:25:00-05:00"}
+{"event": "end", "timer": "pomo", "label": "pomo \u00b7 focus 1/4", "phase": "focus", "round": 1, "rounds": 4, "duration": 1500, "remaining": 0, "last": false, "time": "2026-11-07T14:25:00-05:00", "ends_at": null}
 ```
 
 Events and fields match the [hook variables](#hooks), plus `time`, the local
-time with its UTC offset. `round` and `rounds` are `null` for single timers.
+time with its UTC offset, and `ends_at`, when the countdown will reach zero.
+`ends_at` is set on `start`, `resume`, and `tick` records and is `null` when
+the countdown is not running (`pause`, `wait`, `cancel`, `end`), so a reader
+can show the time left without counting seconds itself. `round` and `rounds`
+are `null` for single timers.
 Each line is written and flushed as the event happens, and the output is ASCII
 (other characters use JSON escapes), so it is valid in any locale.
 Nothing else is written to standard output: no countdown, prompts, or bell.
@@ -312,6 +316,17 @@ Hooks run alongside JSON output. The text display remains the default
 (`--format text`). `--format jsonl` cannot be combined with `--list`,
 `--preview`, or `--live`. Exit statuses are unchanged, so a stream that ends
 in `cancel` is followed by exit status 130.
+
+By default the stream has only events, which keeps logs small. Add `--ticks`
+for a `tick` record each second while the countdown runs, for status bars and
+other live displays:
+
+```bash
+pypomo pomo --format jsonl --ticks | jq --unbuffered -r '"\(.phase) \(.remaining)s"'
+```
+
+Ticks carry the same fields as other records. None are written while paused,
+and they never run hooks. `--ticks` requires `--format jsonl`.
 
 ## Development
 

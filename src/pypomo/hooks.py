@@ -4,7 +4,7 @@ import subprocess
 import sys
 from collections.abc import Mapping
 
-from .events import EVENTS, Phase
+from .events import EVENTS, TICK, Phase
 
 HOOK_KEYS = (*EVENTS, 'any')
 
@@ -54,6 +54,8 @@ class HookRunner:
         self.emit(event, phase, remaining)
 
     def emit(self, event: str, phase: Phase, remaining: int) -> None:
+        if event == TICK:  # Starting processes every second would swamp the system.
+            return
         commands = self.commands.get(event, []) + self.commands.get('any', [])
         if not commands:
             return
