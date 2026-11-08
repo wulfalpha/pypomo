@@ -6,6 +6,10 @@ All notable changes to pypomo are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- The publish workflow uses `actions/upload-artifact@v7` and
+  `actions/download-artifact@v8`, which run on Node.js 24.
+
 ## [0.4.0] - 2026-11-07
 
 Live countdown data for JSON lines readers.
