@@ -6,6 +6,10 @@ All notable changes to pypomo are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- The build backend requirement is now `uv_build>=0.13.7,<0.14.0`, so building
+  with current uv no longer warns or fetches an older backend.
+
 ## [0.3.0] - 2026-11-07
 
 ### Added
