@@ -1,6 +1,7 @@
 name: Publish
 
-# Publishes to PyPI (project "pypomodo") when a version tag such as v0.4.0 is pushed.
+# Publishes to PyPI (project "pypomodo") when a version tag such as v0.4.0 is pushed,
+# then creates a GitHub release with the changelog notes and the uploaded files.
 # Uses trusted publishing: PyPI trusts this workflow file and the "pypi" environment,
 # so no API token is stored in the repository.
 
@@ -28,6 +29,8 @@ jobs:
             echo "::error::Tag $GITHUB_REF_NAME does not match pyproject.toml version $version"
             exit 1
           fi
+      - name: Check the changelog has a section for this version
+        run: python scripts/release_notes.py "$GITHUB_REF_NAME" > /dev/null
       - name: Build source distribution and wheel
         run: |
           python -m pip install build
@@ -61,3 +64,24 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: Create GitHub release
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write  # Required to create the release.
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Create the release with changelog notes and the built files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/release_notes.py "$GITHUB_REF_NAME" > notes.md
+          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag \
+            --title "pypomo ${GITHUB_REF_NAME#v}" --notes-file notes.md

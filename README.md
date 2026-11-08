@@ -319,7 +319,7 @@ in `cancel` is followed by exit status 130.
 uv sync                      # create .venv with pypomo (editable) and ruff
 uv run python -m unittest discover -s tests -v
 uv run pypomo 1s
-uv run ruff check src tests
+uv run ruff check src tests scripts
 ```
 
 Without uv, the tests need no dependencies:
@@ -336,9 +336,11 @@ merge, then tag the merge commit and push the tag:
 git tag -a v0.4.0 -m "pypomo 0.4.0" && git push origin v0.4.0
 ```
 
-The `Publish` workflow checks that the tag matches the package version, builds
-and tests the wheel, and uploads it to PyPI with trusted publishing from the
-`pypi` environment. No API token is stored in the repository.
+The `Publish` workflow checks that the tag matches the package version and that
+the changelog has a section for it, builds and tests the wheel, and uploads it
+to PyPI with trusted publishing from the `pypi` environment. No API token is
+stored in the repository. It then creates a GitHub release from the changelog
+section (via `scripts/release_notes.py`) with the wheel and sdist attached.
 
 ## Continuous integration
 
