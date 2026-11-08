@@ -2,11 +2,17 @@
 import json
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from .output import write
 
 EVENTS = ('start', 'end', 'pause', 'resume', 'cancel', 'wait')
+
+# Sent once per second of countdown, only when requested (--ticks) and never to hooks.
+TICK = 'tick'
+
+# Events after which the countdown is running, so the record has an end time.
+RUNNING = frozenset({'start', 'resume', TICK})
 
 # Called by a running timer with an event name and the whole seconds remaining.
 EventHandler = Callable[[str, int], None]
@@ -45,6 +51,8 @@ class Events:
 
 def event_record(event: str, timer: str, phase: Phase, remaining: int,
                  now: datetime | None = None) -> dict[str, object]:
+    now = now or datetime.now().astimezone()
+    ends_at = now + timedelta(seconds=remaining) if event in RUNNING else None
     return {
         'event': event,
         'timer': timer,
@@ -55,7 +63,8 @@ def event_record(event: str, timer: str, phase: Phase, remaining: int,
         'duration': phase.duration,
         'remaining': remaining,
         'last': phase.last,
-        'time': (now or datetime.now().astimezone()).isoformat(timespec='seconds'),
+        'time': now.isoformat(timespec='seconds'),
+        'ends_at': ends_at.isoformat(timespec='seconds') if ends_at else None,
     }
 
 

@@ -5,7 +5,7 @@ import shutil
 import sys
 import time
 
-from .events import EventHandler
+from .events import TICK, EventHandler
 from .keys import ENTER_KEYS, PAUSE_KEYS, QUIT_KEYS, Keyboard
 from .output import write
 from .pretty import Bar, Colors, Pretty, render
@@ -62,10 +62,11 @@ def _wait_for(keys: Keyboard, wanted: frozenset[str]) -> None:
 def run_timer(seconds: int, label: str, *, live: bool = False, pretty: Pretty | None = None,
               finish_line: bool = True, completion: str = 'complete', silent: bool = False,
               keys: Keyboard | None = None, on_event: EventHandler | None = None,
-              display: bool = True) -> None:
+              display: bool = True, ticks: bool = False) -> None:
     """Count down `seconds`. With `keys`, p/space pauses and resumes, q cancels.
 
-    `on_event(name, remaining)` is called for start, pause, resume, cancel and end.
+    `on_event(name, remaining)` is called for start, pause, resume, cancel and end,
+    and with `ticks` also for each whole second counted down while running.
     With `display=False` nothing is drawn, leaving stdout to event output.
     """
     def emit(event: str, remaining: int) -> None:
@@ -80,6 +81,7 @@ def run_timer(seconds: int, label: str, *, live: bool = False, pretty: Pretty | 
         screen.show(f'{format_duration(seconds)} remaining', seconds)
         emit('start', seconds)
         last_shown: int | None = seconds
+        last_tick = seconds
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -88,6 +90,9 @@ def run_timer(seconds: int, label: str, *, live: bool = False, pretty: Pretty | 
             if screen.interactive and shown != last_shown:
                 screen.show(f'{format_duration(shown)} remaining', remaining)
                 last_shown = shown
+            if ticks and shown != last_tick:
+                emit(TICK, shown)
+                last_tick = shown
             # Schedule against the deadline, so ordinary oversleep does not accumulate.
             delay = min(remaining, remaining - shown + 1)
             if keys is None:
@@ -106,6 +111,7 @@ def run_timer(seconds: int, label: str, *, live: bool = False, pretty: Pretty | 
                     screen.show(f'resumed at {text} remaining', paused)
                 emit('resume', math.ceil(paused))
                 deadline = time.monotonic() + paused
+                last_tick = math.ceil(paused)
                 paused, last_shown = None, None
     except KeyboardInterrupt:
         if paused is not None:

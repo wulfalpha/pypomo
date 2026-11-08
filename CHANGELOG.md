@@ -9,6 +9,11 @@ All notable changes to pypomo are recorded here. The format follows
 ### Added
 - Each release tag also creates a GitHub release with the changelog notes and
   the built files. Releases 0.1.0 through 0.3.1 were added retroactively.
+- `--ticks` adds a `tick` record each second to `--format jsonl` output, for
+  status bars and other live displays. Ticks are not written while paused and
+  never run hooks.
+- JSON records have an `ends_at` field: when the countdown will reach zero on
+  `start`, `resume`, and `tick` records, and `null` otherwise.
 
 ## [0.3.1] - 2026-11-07
 

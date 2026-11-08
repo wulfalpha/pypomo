@@ -82,11 +82,11 @@ def _main(argv: list[str] | None = None) -> int:
     with keyboard() as keys:
         if isinstance(target, Pomodoro):
             run_pomodoro(target, args.timer, live=args.live, pretty=pretty, silent=args.silent, keys=keys,
-                         events=events, display=not jsonl)
+                         events=events, display=not jsonl, ticks=args.ticks)
         else:
             on_event = events.handler(Phase(args.timer, 'timer', target)) if events else None
             run_timer(target, args.timer, live=args.live, pretty=pretty, silent=args.silent, keys=keys,
-                      on_event=on_event, display=not jsonl)
+                      on_event=on_event, display=not jsonl, ticks=args.ticks)
     return 0
 
 
@@ -110,6 +110,8 @@ def build_parser() -> ArgumentParser:
     parser.add_argument('--format', choices=('text', 'jsonl'), default='text',
                         help='text: the countdown display (default); jsonl: one JSON object per '
                              'event on stdout, with no display')
+    parser.add_argument('--ticks', action='store_true',
+                        help='with --format jsonl, also write a tick event each second (never sent to hooks)')
     parser.add_argument('--auto-start', action=argparse.BooleanOptionalAction, default=None,
                         help='start each Pomodoro phase automatically (or --no-auto-start '
                              'to wait for Enter between phases)')
@@ -141,6 +143,8 @@ def parse_args(parser: ArgumentParser, argv: list[str] | None) -> argparse.Names
         for flag, used in (('--list', args.list), ('--preview', args.preview), ('--live', args.live)):
             if used:
                 parser.error(f'--format jsonl is for running timers; it cannot be used with {flag}')
+    elif args.ticks:
+        parser.error('--ticks requires --format jsonl')
     return args
 
 
