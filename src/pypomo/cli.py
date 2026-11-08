@@ -28,6 +28,7 @@ class ArgumentParser(argparse.ArgumentParser):
 
 
 DURATIONS_HELP = 'Durations combine d, h, m, and s in that order: 25m, 1h30m, 1h 30m, or 2d.'
+DISTRIBUTION = 'pypomodo'  # The PyPI name; the command and package are pypomo.
 KEYS_HELP = ('While a timer runs in a terminal, press p or Space to pause and resume, '
              'or q to cancel.')
 
@@ -113,7 +114,7 @@ def build_parser() -> ArgumentParser:
                         help='start each Pomodoro phase automatically (or --no-auto-start '
                              'to wait for Enter between phases)')
     try:
-        package_version = version('pypomo')
+        package_version = version(DISTRIBUTION)
     except PackageNotFoundError:
         package_version = 'unknown (source checkout)'
     parser.add_argument('--version', action='version', version=f'pypomo {package_version}')
