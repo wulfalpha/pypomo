@@ -6,6 +6,8 @@ All notable changes to pypomo are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-07
+
 ### Added
 - Ctrl+Break on Windows cancels the timer like SIGTERM, with a cancellation line.
 - `--format jsonl` writes one JSON object per event to stdout instead of the
@@ -69,6 +71,7 @@ Hardening from the [October 2026 review](docs/review-2026-10.md):
   `XDG_CONFIG_HOME` values are handled.
 - `NO_COLOR` and `TERM=dumb` are respected.
 
-[Unreleased]: https://github.com/wulfalpha/pypomo/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/wulfalpha/pypomo/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/wulfalpha/pypomo/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/wulfalpha/pypomo/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/wulfalpha/pypomo/releases/tag/v0.1.0

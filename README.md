@@ -3,7 +3,8 @@
 A terminal-first Pomodoro timer in the Unix tradition. pypomo keeps time well:
 durations, named timers, finite Pomodoro routines, pause and resume, and clean
 output for terminals and pipes. Notifications, sounds, and logging are left to
-the tools you already use, through [event hooks](#hooks).
+the tools you already use, through [event hooks](#hooks) and
+[JSON lines output](#json-lines-output).
 Requires Python 3.12 or newer; no runtime dependencies.
 
 Licensed under the [MIT License](LICENSE). See the [changelog](CHANGELOG.md)
@@ -12,8 +13,8 @@ for what changed in each release.
 Install the latest release with uv or pipx:
 
 ```bash
-uv tool install git+https://github.com/wulfalpha/pypomo@v0.2.0
-pipx install git+https://github.com/wulfalpha/pypomo@v0.2.0
+uv tool install git+https://github.com/wulfalpha/pypomo@v0.3.0
+pipx install git+https://github.com/wulfalpha/pypomo@v0.3.0
 ```
 
 Or install from a checkout with `pip install .`, or run with `uv run pypomo`.
