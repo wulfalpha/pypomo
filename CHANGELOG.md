@@ -6,6 +6,10 @@ All notable changes to pypomo are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Each release tag also creates a GitHub release with the changelog notes and
+  the built files. Releases 0.1.0 through 0.3.1 were added retroactively.
+
 ## [0.3.1] - 2026-11-07
 
 First release on PyPI, as `pypomodo`. No changes to timer behavior.
